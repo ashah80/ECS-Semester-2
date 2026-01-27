@@ -24,27 +24,65 @@ class Stack:
             print("Stack is empty", file=sys.stderr)
         value = self.stack[self.pointer]
         return value
-    
+
+# Mathematical methods
 def add(stack):
     num1 = stack.pop()
     num2 = stack.pop()
     stack.push(num1 + num2)
 
+def sub(stack):
+    num1 = stack.pop()
+    num2 = stack.pop()
+    stack.push(num2 - num1)
+
+def mult(stack):
+    num1 = stack.pop()
+    num2 = stack.pop()
+    stack.push(num2 * num1)
+
+def div(stack):
+    num1 = stack.pop()
+    num2 = stack.pop()
+    stack.push(num2 / num1)
+
     
-# Get CLI arguments for txt file 
+# Get CLI argument for txt file 
 text_file = ""
 if len(sys.argv) > 1:
     text_file = sys.argv[1]
 else:
-    print("Usage: my_script.py <input_file>", file=sys.stderr)
+    print("Usage: Assignment1.py <input_file>", file=sys.stderr)
     sys.exit()
 
 # Open and read the file
 try:
     with open(text_file, 'r') as file:
-        content = file.read()
-        print(content)
-    
+        command_list = file.read().split('\n')
+        print(command_list)
+
+        # Create 100-length stack
+        stack = Stack(100)
+        line_number = 0
+
+        for command in command_list:
+            line_number += 1
+            if 'push' in command:
+                number = int(command.split(' ')[1])
+                stack.push(number)
+            elif 'pop' in command:
+                print(stack.pop())
+            elif 'add' in command:
+                add(stack)
+            elif 'sub' in command:
+                sub(stack)
+            elif 'mult' in command:
+                mult(stack)
+            elif 'div' in command:
+                div(stack)
+            else:
+                print(f"Error at line number: {line_number}", file=sys.stderr)
+
 except FileNotFoundError:
     print(f"Error: A FileNotFound error occurred", file=sys.stderr)
     sys.exit(1)
