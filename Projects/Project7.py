@@ -19,6 +19,14 @@ with open(vm_file, 'r') as file:
             instructions.append(line)
 print(instructions)
 
+# SP decrementer helper function
+def decrement_pointer():
+    """
+    Decrements the stack pointer by 1, then points the A register to the new top of the stack.
+    """
+    return ["@SP", "M=M-1", "A=M"]
+
+
 # Helper functions for pushing and popping from the stack
 
 def push_constant(value):
@@ -33,7 +41,7 @@ def pop_from_stack():
     Pops the top of the stack and stores in D.
     This function decrements the stack pointer, then stores the value at that memory address in the D register.
     """
-    return ["@SP", "M=M-1", "A=M", "D=M"]
+    return decrement_pointer() + ["D=M"]
     
 # Helper functions for single-argument commands
 def handle_neg():
@@ -50,7 +58,34 @@ def handle_not():
     """
     return ["@SP", "A=M-1", "M=!M"]
 
+# Helper functions for two-argument commands
+def handle_add():
+    """
+    Adds the top two values on the stack.
+    Pops a value from the stack, puts it in the D register, adds it to the 2nd-top value on the stack.
+    """
+    return pop_from_stack() + decrement_pointer() + ["M=D+M", "@SP", "M=M+1"]
 
+def handle_sub():
+    """
+    Adds the top two values on the stack.
+    Pops a value from the stack (which is stored in the D register) subtracts it from the next value on the stack.
+    """
+    return pop_from_stack() + decrement_pointer() + ["M=D-M", "@SP", "M=M+1"]
+
+def handle_and():
+    """
+    Bitwise "and" of the top two values on the stack 
+    Pops a value from the stack (which is stored in the D register), "ands" it with the next value on the stack.
+    """
+    return pop_from_stack() + decrement_pointer() + ["M=D&M", "@SP", "M=M+1"]
+
+def handle_or():
+    """
+    Bitwise "or" of the top two values on the stack 
+    Pops a value from the stack (which is stored in the D register), "ors" it with the next value on the stack.
+    """
+    return pop_from_stack() + decrement_pointer() + ["M=D|M", "@SP", "M=M+1"]
 
 hack_instructions = []
 # Determine command type
@@ -64,7 +99,14 @@ for instruction in instructions:
             hack_instructions.extend(handle_neg())
         if instruction == "not":
             hack_instructions.extend(handle_not())
-
+        if instruction == "add":
+            hack_instructions.extend(handle_add())
+        if instruction == "sub":
+            hack_instructions.extend(handle_sub())
+        if instruction == "and":
+            hack_instructions.extend(handle_and())
+        if instruction == "or":
+            hack_instructions.extend(handle_or())
     elif command == 'push':
         segment = parts[1]
         index = parts[2]
@@ -76,7 +118,7 @@ for instruction in instructions:
         segment = parts[1]
         index = parts[2]
         print(f"{instruction} is a Pop Command with segment: {segment}, index: {index}")
-        
+
     else:
         print(f"{instruction} is an Unknown Command")
 
