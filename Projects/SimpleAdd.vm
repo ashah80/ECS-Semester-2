@@ -1,5 +1,6 @@
-push constant 7 #HIHI
-#HIHI
+push constant 7 //HIHI
+//HIHI
 push constant 8
 
-add
+neg
+not

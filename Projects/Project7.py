@@ -13,9 +13,9 @@ instructions = []
 with open(vm_file, 'r') as file:
     for line in file:
         line = line.strip()
-        if '#' in line:
-            line = line[:line.index('#')].strip()
-        if line and not line.startswith('#'):
+        if '//' in line:
+            line = line[:line.index('//')].strip()
+        if line and not line.startswith('//'):
             instructions.append(line)
 print(instructions)
 
@@ -35,6 +35,20 @@ def pop_from_stack():
     """
     return ["@SP", "M=M-1", "A=M", "D=M"]
     
+# Helper functions for single-argument commands
+def handle_neg():
+    """
+    Flips the sign of the top value on the stack.
+    Stores the decremented value of the stack pointer in the A register, then flips the sign of that value.
+    """
+    return ["@SP", "A=M-1", "M=-M"]
+
+def handle_not():
+    """
+    Performs a bitwise negation of the top value on the stack.
+    Similar implementation to handle_neg(), but with a not(!) instead of a negative(-)
+    """
+    return ["@SP", "A=M-1", "M=!M"]
 
 
 
@@ -46,16 +60,23 @@ for instruction in instructions:
 
     if command in ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']:
         print(f"{instruction} is an Arithmetic Command")
+        if instruction == "neg":
+            hack_instructions.extend(handle_neg())
+        if instruction == "not":
+            hack_instructions.extend(handle_not())
+
     elif command == 'push':
         segment = parts[1]
         index = parts[2]
         print(f"{instruction} is a Push Command with segment: {segment}, index: {index}")
         if segment == "constant":
             hack_instructions.extend(push_constant(index))
+
     elif command == 'pop':
         segment = parts[1]
         index = parts[2]
         print(f"{instruction} is a Pop Command with segment: {segment}, index: {index}")
+        
     else:
         print(f"{instruction} is an Unknown Command")
 
