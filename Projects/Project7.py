@@ -22,9 +22,15 @@ print(instructions)
 # SP decrementer helper function
 def decrement_pointer():
     """
-    Decrements the stack pointer by 1, then points the A register to the new top of the stack.
+    Decrements the stack pointer by 1.
     """
-    return ["@SP", "M=M-1", "A=M"]
+    return ["@SP", "M=M-1"]
+
+def increment_pointer():
+    """
+    Increments the stack pointer by 1
+    """
+    return ["@SP", "M=M+1"]
 
 
 # Helper functions for pushing and popping from the stack
@@ -34,14 +40,14 @@ def push_constant(value):
     Pushes D onto stack.
     This function takes in a value, loads it into the D register, goes to the address of the stack pointer, stores the value in that memory address, increments stack pointer.
     """
-    return [f"@{value}", "D=A", "@SP", "A=M", "M=D", "@SP", "M=M+1"] 
+    return [f"@{value}", "D=A", "@SP", "A=M", "M=D"] + increment_pointer()
 
 def pop_from_stack():
     """
     Pops the top of the stack and stores in D.
     This function decrements the stack pointer, then stores the value at that memory address in the D register.
     """
-    return decrement_pointer() + ["D=M"]
+    return decrement_pointer() + ["A=M", "D=M"]
     
 # Helper functions for single-argument commands
 def handle_neg():
@@ -64,28 +70,44 @@ def handle_add():
     Adds the top two values on the stack.
     Pops a value from the stack, puts it in the D register, adds it to the 2nd-top value on the stack.
     """
-    return pop_from_stack() + decrement_pointer() + ["M=D+M", "@SP", "M=M+1"]
+    return pop_from_stack() + ["@SP", "A=M-1", "M=D+M"]
 
 def handle_sub():
     """
     Adds the top two values on the stack.
     Pops a value from the stack (which is stored in the D register) subtracts it from the next value on the stack.
     """
-    return pop_from_stack() + decrement_pointer() + ["M=D-M", "@SP", "M=M+1"]
+    return pop_from_stack() + ["@SP", "A=M-1", "M=M-D"]
 
 def handle_and():
     """
     Bitwise "and" of the top two values on the stack 
     Pops a value from the stack (which is stored in the D register), "ands" it with the next value on the stack.
     """
-    return pop_from_stack() + decrement_pointer() + ["M=D&M", "@SP", "M=M+1"]
+    return pop_from_stack() + ["@SP", "A=M-1", "M=D&M"]
 
 def handle_or():
     """
     Bitwise "or" of the top two values on the stack 
     Pops a value from the stack (which is stored in the D register), "ors" it with the next value on the stack.
     """
-    return pop_from_stack() + decrement_pointer() + ["M=D|M", "@SP", "M=M+1"]
+    return pop_from_stack() + ["@SP", "A=M-1", "M=D|M"]
+
+
+# Helper functions for local, argument, this, that segments
+def push_from_segment(segment, index):
+    """
+    Pushes a value from a segment onto the stack.
+    This function takes in a segment and index, calculates the address of that segment and index, stores the value at that memory address in the D register, then pushes that value onto the stack.
+    """
+    segment_pointers = {
+        "local": "LCL",
+        "argument": "ARG",
+        "this": "THIS",
+        "that": "THAT"
+    }
+    
+    return [f"@{index}", "D=A", f"@{segment_pointers[segment]}", "A=D+M", "D=M", "@SP", "A=M", "M=D"] + increment_pointer()
 
 hack_instructions = []
 # Determine command type
@@ -93,6 +115,7 @@ for instruction in instructions:
     parts = instruction.split()
     command = parts[0]
 
+    # Check for arithmetic/logical commands
     if command in ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']:
         print(f"{instruction} is an Arithmetic Command")
         if instruction == "neg":
@@ -107,12 +130,17 @@ for instruction in instructions:
             hack_instructions.extend(handle_and())
         if instruction == "or":
             hack_instructions.extend(handle_or())
+
+    # Check for push commands
     elif command == 'push':
         segment = parts[1]
         index = parts[2]
         print(f"{instruction} is a Push Command with segment: {segment}, index: {index}")
         if segment == "constant":
             hack_instructions.extend(push_constant(index))
+        if segment in ["local", "argument", "this", "that"]:
+            hack_instructions.extend(push_from_segment(segment, index))
+
 
     elif command == 'pop':
         segment = parts[1]
