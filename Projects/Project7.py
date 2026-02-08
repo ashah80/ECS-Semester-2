@@ -19,7 +19,7 @@ with open(vm_file, 'r') as file:
             instructions.append(line)
 print(instructions)
 
-# SP decrementer helper function
+# SP decrementer/incrementer helper function
 def decrement_pointer():
     """
     Decrements the stack pointer by 1.
@@ -32,15 +32,21 @@ def increment_pointer():
     """
     return ["@SP", "M=M+1"]
 
+def push_D_to_stack():
+    """
+    Pushes the value in the D register onto the stack.
+    This function goes to the address of the stack pointer, stores the value in the D register in that memory address, increments stack pointer.
+    """
+    return ["@SP", "A=M", "M=D"] + increment_pointer()
 
 # Helper functions for pushing and popping from the stack
 
 def push_constant(value):
     """
-    Pushes D onto stack.
+    Pushes a value onto stack.
     This function takes in a value, loads it into the D register, goes to the address of the stack pointer, stores the value in that memory address, increments stack pointer.
     """
-    return [f"@{value}", "D=A", "@SP", "A=M", "M=D"] + increment_pointer()
+    return [f"@{value}", "D=A"] + push_D_to_stack()
 
 def pop_from_stack():
     """
@@ -108,7 +114,7 @@ def push_from_segment(segment, index):
     This function takes in a segment and index, calculates the address of that segment and index, stores the value at that memory address in the D register, then pushes that value onto the stack.
     """
     
-    return [f"@{index}", "D=A", f"@{segment_pointers[segment]}", "A=D+M", "D=M", "@SP", "A=M", "M=D"] + increment_pointer()
+    return [f"@{index}", "D=A", f"@{segment_pointers[segment]}", "A=D+M", "D=M"] + push_D_to_stack()
 
 def pop_from_segment(segment, index):
     """
@@ -167,8 +173,26 @@ def handle_comparison(command):
 
     return hack_asm
     
-    
+# Handle temp segment
+def push_from_temp(index):
+    """
+    Pushes a value from the temp segment onto the stack.
+    This function takes in an index, calculates the address of that index in the temp segment, stores the value at that memory address in the D register, then pushes that value onto the stack.
+    """
+    base_address = 5
+    actual_address = str(base_address + int(index))
+    return [f"@{actual_address}", "D=M"] + push_D_to_stack()
 
+def pop_from_temp(index):
+    """
+    Pops a value from the stack and stores it in the temp segment.
+    This function takes in an index, calculates the address of that index in the temp segment, pops a value from the stack (which is stored in the D register), then stores that value at the calculated memory address.
+    """
+    base_address = 5
+    actual_address = str(base_address + int(index))
+    return pop_from_stack() + [f"@{actual_address}", "M=D"]
+
+    
 hack_instructions = []
 # Determine command type
 for instruction in instructions:
@@ -202,6 +226,8 @@ for instruction in instructions:
             hack_instructions.extend(push_constant(index))
         if segment in ["local", "argument", "this", "that"]:
             hack_instructions.extend(push_from_segment(segment, index))
+        if segment == "temp":
+            hack_instructions.extend(push_from_temp(index))
 
     elif command == 'pop':
         segment = parts[1]
@@ -209,6 +235,8 @@ for instruction in instructions:
         print(f"{instruction} is a Pop Command with segment: {segment}, index: {index}")
         if segment in ["local", "argument", "this", "that"]:
             hack_instructions.extend(pop_from_segment(segment, index))
+        if segment == "temp":
+            hack_instructions.extend(pop_from_temp(index))
     else:
         print(f"{instruction} is an Unknown Command")
 
