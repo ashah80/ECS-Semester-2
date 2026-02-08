@@ -2,8 +2,10 @@ import sys
 
 # Get CLI argument for vm file 
 vm_file = ""
+vm_basename = ""
 if len(sys.argv) == 2 and sys.argv[1].endswith('.vm'):
     vm_file = sys.argv[1]
+    vm_basename = vm_file.replace('.vm', '')
 else:
     print("Usage Error: Assignment1.py <input_file.vm>", file=sys.stderr)
     sys.exit()
@@ -192,6 +194,44 @@ def pop_from_temp(index):
     actual_address = str(base_address + int(index))
     return pop_from_stack() + [f"@{actual_address}", "M=D"]
 
+# Handle pointer segment
+
+def push_from_pointer(index):
+    """
+    Pushes a value from the pointer segment onto the stack.
+    This function takes in an index, then pushes the value at THIS/THAT onto the stack.
+    """
+    if index == "0":
+        return ["@THIS", "D=M"] + push_D_to_stack()
+    elif index == "1":
+        return ["@THAT", "D=M"] + push_D_to_stack()
+    
+def pop_from_pointer(index):
+    """
+    Pops a value from the stack and stores it in the pointer segment.
+    This function takes in an index, then pushes the value at THIS/THAT onto the stack.
+    """
+    if index == "0":
+        return pop_from_stack() + ["@THIS", "M=D"]
+    elif index == "1":
+        return pop_from_stack() + ["@THAT", "M=D"]
+    
+# Handle static segment (RAM addresses 16-255, named based on file name and index)
+def push_from_static(index):
+    """
+    Pushes a value from the static segment onto the stack.
+    This function takes in an index, creates a variable based on the file name, stores the value at that memory address in the D register, then pushes that value onto the stack.
+    """
+    var_name = f"{vm_basename}.{index}"
+    return [f"@{var_name}", "D=M"] + push_D_to_stack()
+
+def pop_from_static(index):
+    """
+    Pops a value from the stack and stores it in the static segment.
+    This function takes in an index, creates a variable based on the file name, pops a value from the stack (which is stored in the D register), then stores that value at the memory address of the variable.
+    """
+    var_name = f"{vm_basename}.{index}"
+    return pop_from_stack() + [f"@{var_name}", "M=D"]
     
 hack_instructions = []
 # Determine command type
@@ -228,6 +268,10 @@ for instruction in instructions:
             hack_instructions.extend(push_from_segment(segment, index))
         if segment == "temp":
             hack_instructions.extend(push_from_temp(index))
+        if segment == "pointer":
+            hack_instructions.extend(push_from_pointer(index))
+        if segment == "static":
+            hack_instructions.extend(push_from_static(index))
 
     elif command == 'pop':
         segment = parts[1]
@@ -237,6 +281,10 @@ for instruction in instructions:
             hack_instructions.extend(pop_from_segment(segment, index))
         if segment == "temp":
             hack_instructions.extend(pop_from_temp(index))
+        if segment == "pointer":
+            hack_instructions.extend(pop_from_pointer(index))
+        if segment == "static":
+            hack_instructions.extend(pop_from_static(index))
     else:
         print(f"{instruction} is an Unknown Command")
 
