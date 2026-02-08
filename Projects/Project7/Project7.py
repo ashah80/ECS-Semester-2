@@ -209,7 +209,7 @@ def push_from_pointer(index):
 def pop_from_pointer(index):
     """
     Pops a value from the stack and stores it in the pointer segment.
-    This function takes in an index, then pushes the value at THIS/THAT onto the stack.
+    This function takes in an index, then pops a value from the stack (which is stored in the D register) and stores that value at THIS/THAT.
     """
     if index == "0":
         return pop_from_stack() + ["@THIS", "M=D"]
