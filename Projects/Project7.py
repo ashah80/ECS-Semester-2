@@ -64,7 +64,7 @@ def handle_not():
     """
     return ["@SP", "A=M-1", "M=!M"]
 
-# Helper functions for two-argument commands
+# Helper functions for arithmetic commands
 def handle_add():
     """
     Adds the top two values on the stack.
@@ -95,19 +95,79 @@ def handle_or():
 
 
 # Helper functions for local, argument, this, that segments
+segment_pointers = {
+    "local": "LCL",
+    "argument": "ARG",
+    "this": "THIS",
+    "that": "THAT"
+}
+
 def push_from_segment(segment, index):
     """
     Pushes a value from a segment onto the stack.
     This function takes in a segment and index, calculates the address of that segment and index, stores the value at that memory address in the D register, then pushes that value onto the stack.
     """
-    segment_pointers = {
-        "local": "LCL",
-        "argument": "ARG",
-        "this": "THIS",
-        "that": "THAT"
-    }
     
     return [f"@{index}", "D=A", f"@{segment_pointers[segment]}", "A=D+M", "D=M", "@SP", "A=M", "M=D"] + increment_pointer()
+
+def pop_from_segment(segment, index):
+    """
+    Pops a value from the stack and stores it in a segment.
+    This function takes in a segment and index, calculates the address of that segment and index, pops a value from the stack (which is stored in the D register), then stores that value at the calculated memory address.
+    """
+    
+    return [f"@{index}", "D=A", f"@{segment_pointers[segment]}", "D=D+M", "@R13", "M=D"] + pop_from_stack() + ["@R13", "A=M", "M=D"]
+
+label_counter = 0
+# Helper functions for gt, lt, eq commands
+def generate_unique_label(condition):
+    """
+    Generates a unique label for conditional commands.
+    This function takes in a condition ("TRUE", "END") and returns a unique label string based on that condition and a counter.
+    """
+    global label_counter
+    label = f"{condition}_{label_counter}"
+    label_counter += 1
+    return label
+
+def handle_comparison(command):
+    """
+    Handles gt, lt, eq commands.
+    This function takes in a command ("gt", "lt", "eq"), pops two values from the stack, compares them based on the command, and pushes -1 (true) or 0 (false) onto the stack based on the result of the comparison.
+    """
+
+    # Generate labels for true/false/end conditions
+    true_label = generate_unique_label("TRUE")
+    end_label = generate_unique_label("END")
+
+    hack_asm = []
+
+    # Pop from top of stack into D
+    hack_asm += pop_from_stack()
+
+    # Load next value on stack into A, then compute x - y and store in D
+    hack_asm += ["@SP", "A=M-1", "D=M-D"]
+
+    # Jump to true_label if condition is met
+    if command == "eq":
+        hack_asm += [f"@{true_label}", "D;JEQ"]
+    elif command == "gt":
+        hack_asm += [f"@{true_label}", "D;JGT"]
+    elif command == "lt":
+        hack_asm += [f"@{true_label}", "D;JLT"]
+
+    # If condition is not met, push 0 (false) onto stack and jump to end_label
+    hack_asm += ["@SP", "A=M-1", "M=0", f"@{end_label}", "0;JMP"]
+
+    # If condition is met, push -1 (true) onto stack
+    hack_asm += [f"({true_label})", "@SP", "A=M-1", "M=-1", f"@{end_label}", "0;JMP"]
+
+    # End label
+    hack_asm += [f"({end_label})"]
+
+    return hack_asm
+    
+    
 
 hack_instructions = []
 # Determine command type
@@ -118,18 +178,20 @@ for instruction in instructions:
     # Check for arithmetic/logical commands
     if command in ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']:
         print(f"{instruction} is an Arithmetic Command")
-        if instruction == "neg":
+        if command == "neg":
             hack_instructions.extend(handle_neg())
-        if instruction == "not":
+        if command == "not":
             hack_instructions.extend(handle_not())
-        if instruction == "add":
+        if command == "add":
             hack_instructions.extend(handle_add())
-        if instruction == "sub":
+        if command == "sub":
             hack_instructions.extend(handle_sub())
-        if instruction == "and":
+        if command == "and":
             hack_instructions.extend(handle_and())
-        if instruction == "or":
+        if command == "or":
             hack_instructions.extend(handle_or())
+        if command in ["eq", "gt", "lt"]:
+            hack_instructions.extend(handle_comparison(command))
 
     # Check for push commands
     elif command == 'push':
@@ -141,12 +203,12 @@ for instruction in instructions:
         if segment in ["local", "argument", "this", "that"]:
             hack_instructions.extend(push_from_segment(segment, index))
 
-
     elif command == 'pop':
         segment = parts[1]
         index = parts[2]
         print(f"{instruction} is a Pop Command with segment: {segment}, index: {index}")
-
+        if segment in ["local", "argument", "this", "that"]:
+            hack_instructions.extend(pop_from_segment(segment, index))
     else:
         print(f"{instruction} is an Unknown Command")
 
