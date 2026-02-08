@@ -7,7 +7,7 @@ if len(sys.argv) == 2 and sys.argv[1].endswith('.vm'):
     vm_file = sys.argv[1]
     vm_basename = vm_file.replace('.vm', '')
 else:
-    print("Usage Error: Assignment1.py <input_file.vm>", file=sys.stderr)
+    print("Usage Error: Project7.py <input_file.vm>", file=sys.stderr)
     sys.exit()
 
 # Read from input file, avoid whitespace/comments, store in a list
@@ -19,7 +19,6 @@ with open(vm_file, 'r') as file:
             line = line[:line.index('//')].strip()
         if line and not line.startswith('//'):
             instructions.append(line)
-print(instructions)
 
 # SP decrementer/incrementer helper function
 def decrement_pointer():
@@ -241,7 +240,6 @@ for instruction in instructions:
 
     # Check for arithmetic/logical commands
     if command in ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']:
-        print(f"{instruction} is an Arithmetic Command")
         if command == "neg":
             hack_instructions.extend(handle_neg())
         if command == "not":
@@ -261,7 +259,6 @@ for instruction in instructions:
     elif command == 'push':
         segment = parts[1]
         index = parts[2]
-        print(f"{instruction} is a Push Command with segment: {segment}, index: {index}")
         if segment == "constant":
             hack_instructions.extend(push_constant(index))
         if segment in ["local", "argument", "this", "that"]:
@@ -276,7 +273,6 @@ for instruction in instructions:
     elif command == 'pop':
         segment = parts[1]
         index = parts[2]
-        print(f"{instruction} is a Pop Command with segment: {segment}, index: {index}")
         if segment in ["local", "argument", "this", "that"]:
             hack_instructions.extend(pop_from_segment(segment, index))
         if segment == "temp":
@@ -286,7 +282,7 @@ for instruction in instructions:
         if segment == "static":
             hack_instructions.extend(pop_from_static(index))
     else:
-        print(f"{instruction} is an Unknown Command")
+        print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
 
 # Write to output file
 output_file = vm_file.replace('.vm', '.asm')
