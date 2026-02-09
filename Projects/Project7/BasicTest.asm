@@ -125,6 +125,12 @@ A=M
 M=D
 @SP
 M=M+1
+@SP
+M=M-1
+A=M
+D=M
+@11
+M=D
 @0
 D=A
 @LCL
@@ -203,6 +209,13 @@ D=M
 @SP
 A=M-1
 M=M-D
+@11
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
 @SP
 M=M-1
 A=M
