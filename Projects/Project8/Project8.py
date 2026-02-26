@@ -4,7 +4,7 @@ import os
 ## PROJECT 8: TODOS
 # TODO: Implement function call and return commands (call, function, return)
 # TODO: Implement branching commands (label, goto, if-goto)
-# TODO: Handle multiple input files and directories (currently only handles single .vm file)
+# TODO: Initialize call Sys.init 
 
 
 
@@ -44,6 +44,8 @@ for vm_file in vm_files:
                 line = line[:line.index('//')].strip()
             if line and not line.startswith('//'):
                 all_instructions.append((vm_basename, line))
+
+current_function = "PLACEHOLDER"
 
 # SP decrementer/incrementer helper function
 def decrement_pointer():
@@ -256,6 +258,27 @@ def pop_from_static(file_name, index):
     """
     var_name = f"{file_name}.{index}"
     return pop_from_stack() + [f"@{var_name}", "M=D"]
+
+# Branching helper functions
+def handle_label(label):
+    """
+    Returns a function-scoped label
+    """
+    return [f"({current_function}${label})"]
+
+def handle_goto(label):
+    """
+    Returns assembly code for an unconditional goto statement.
+    This function takes in a label, and returns assembly code that jumps to that label.
+    """
+    return [f"@{current_function}${label}", "0;JMP"]
+
+def handle_if_goto(label):
+    """
+    Returns assembly code for a conditional goto statement.
+    This function takes in a label, pops a value from the stack (which is stored in the D register), and returns assembly code that jumps to that label if the value is not equal to 0.
+    """
+    return pop_from_stack() + [f"@{current_function}${label}", "D;JNE"]
     
 hack_instructions = []
 # SP initialization to 256
@@ -310,6 +333,17 @@ for vm_basename, instruction in all_instructions:
             hack_instructions.extend(pop_from_pointer(index))
         if segment == "static":
             hack_instructions.extend(pop_from_static(vm_basename, index))
+
+    # Check for branching and function commands
+    elif command in ["label", "goto"]:
+        label = parts[1]
+        if command == "label":
+            hack_instructions.extend(handle_label(label))
+        if command == "goto":
+            hack_instructions.extend(handle_goto(label))
+        if command == "if-goto":
+            hack_instructions.extend(handle_if_goto(label))
+
     else:
         print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
 
