@@ -1,24 +1,49 @@
 import sys
+import os
 
-# Get CLI argument for vm file 
-vm_file = ""
-vm_basename = ""
-if len(sys.argv) == 2 and sys.argv[1].endswith('.vm'):
-    vm_file = sys.argv[1]
-    vm_basename = vm_file.replace('.vm', '')
+## PROJECT 8: TODOS
+# TODO: Implement function call and return commands (call, function, return)
+# TODO: Implement branching commands (label, goto, if-goto)
+# TODO: Handle multiple input files and directories (currently only handles single .vm file)
+
+
+
+# Get CLI argument for vm file/folder
+
+if len(sys.argv) != 2:
+    print("Usage: Project8.py <input.vm or directory>", file=sys.stderr)
+    sys.exit()
+
+input_path = sys.argv[1]
+vm_files = []
+
+# If single file
+if os.path.isfile(input_path) and input_path.endswith(".vm"):
+    vm_files = [input_path]
+    output_file = input_path.replace(".vm", ".asm")
+# If directory
+elif os.path.isdir(input_path):
+    for file in os.listdir(input_path):
+        if file.endswith(".vm"):
+            vm_files.append(os.path.join(input_path, file))
+
+    output_file = os.path.join(input_path, os.path.basename(input_path) + ".asm")
 else:
-    print("Usage Error: Project7.py <input_file.vm>", file=sys.stderr)
+    print("Invalid input path", file=sys.stderr)
     sys.exit()
 
 # Read from input file, avoid whitespace/comments, store in a list
-instructions = []
-with open(vm_file, 'r') as file:
-    for line in file:
-        line = line.strip()
-        if '//' in line:
-            line = line[:line.index('//')].strip()
-        if line and not line.startswith('//'):
-            instructions.append(line)
+all_instructions = []
+for vm_file in vm_files:
+    vm_basename = os.path.basename(vm_file).replace('.vm', '')
+
+    with open(vm_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if '//' in line:
+                line = line[:line.index('//')].strip()
+            if line and not line.startswith('//'):
+                all_instructions.append((vm_basename, line))
 
 # SP decrementer/incrementer helper function
 def decrement_pointer():
@@ -216,25 +241,29 @@ def pop_from_pointer(index):
         return pop_from_stack() + ["@THAT", "M=D"]
     
 # Handle static segment (RAM addresses 16-255, named based on file name and index)
-def push_from_static(index):
+def push_from_static(file_name, index):
     """
     Pushes a value from the static segment onto the stack.
     This function takes in an index, creates a variable based on the file name, stores the value at that memory address in the D register, then pushes that value onto the stack.
     """
-    var_name = f"{vm_basename}.{index}"
+    var_name = f"{file_name}.{index}"
     return [f"@{var_name}", "D=M"] + push_D_to_stack()
 
-def pop_from_static(index):
+def pop_from_static(file_name, index):
     """
     Pops a value from the stack and stores it in the static segment.
     This function takes in an index, creates a variable based on the file name, pops a value from the stack (which is stored in the D register), then stores that value at the memory address of the variable.
     """
-    var_name = f"{vm_basename}.{index}"
+    var_name = f"{file_name}.{index}"
     return pop_from_stack() + [f"@{var_name}", "M=D"]
     
 hack_instructions = []
+# SP initialization to 256
+hack_instructions += ["@256", "D=A", "@SP", "M=D"] 
+
 # Determine command type
-for instruction in instructions:
+for vm_basename, instruction in all_instructions:
+
     parts = instruction.split()
     command = parts[0]
 
@@ -268,7 +297,7 @@ for instruction in instructions:
         if segment == "pointer":
             hack_instructions.extend(push_from_pointer(index))
         if segment == "static":
-            hack_instructions.extend(push_from_static(index))
+            hack_instructions.extend(push_from_static(vm_basename, index))
 
     elif command == 'pop':
         segment = parts[1]
@@ -280,12 +309,11 @@ for instruction in instructions:
         if segment == "pointer":
             hack_instructions.extend(pop_from_pointer(index))
         if segment == "static":
-            hack_instructions.extend(pop_from_static(index))
+            hack_instructions.extend(pop_from_static(vm_basename, index))
     else:
         print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
 
 # Write to output file
-output_file = vm_file.replace('.vm', '.asm')
 with open(output_file, 'w') as file:
     for hack_instruction in hack_instructions:
         file.write(hack_instruction + '\n')
