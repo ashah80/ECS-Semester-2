@@ -284,6 +284,7 @@ def handle_function_declaration(function_name, num_locals):
     Returns assembly code for a function declaration.
     This function takes in a function name and number of local variables, creates a label for the function, and initializes the local variables to 0 on the stack.
     """
+
     hack_assembly = []
     # Label for the function declaration
     hack_assembly += [f"({function_name})"]
@@ -292,10 +293,45 @@ def handle_function_declaration(function_name, num_locals):
 
     return hack_assembly
 
+def handle_function_call(function_name, num_args):
+    """
+    Returns assembly code for a function call.
+    This function takes in a function name and number of arguments, pushes the return address onto the stack, pushes the current LCL, ARG, THIS, THAT pointers onto the stack, repositions the ARG pointer, repositions the LCL pointer, jumps to the function, and declares a return label.
+    """
+    
+    global function_call_counter
+    hack_assembly = []
+
+    # Push return address onto stack
+    return_label = f"{current_function}$ret.{function_call_counter}"
+    hack_assembly += [f"@{return_label}", "D=A"] + push_D_to_stack()
+    function_call_counter += 1
+
+    # Push LCL, ARG, THIS, THAT
+    hack_assembly += ["@LCL", "D=M"] + push_D_to_stack()
+    hack_assembly += ["@ARG", "D=M"] + push_D_to_stack()
+    hack_assembly += push_from_pointer(0)
+    hack_assembly += push_from_pointer(1)
+
+    # Reposition ARG pointer: ARG = SP - num_args - 5 -> # ARG = SP - number_to_subtract 
+    number_to_subtract = int(num_args) + 5
+    hack_assembly += [f"@{number_to_subtract}", "D=A", "@SP", "D=M-D", "@ARG", "M=D"]
+
+    # Reposition LCL pointer: LCL = SP
+    hack_assembly += ["@SP", "D=M", "@LCL", "M=D"]
+
+    # Jump to function
+    hack_assembly += [f"@{function_name}", "0;JMP"]
+
+    # Declare return label
+    hack_assembly += [f"({return_label})"]
+
+    return hack_assembly
+
     
 hack_instructions = []
 # SP initialization to 256
-hack_instructions += ["@256", "D=A", "@SP", "M=D"] 
+hack_instructions += ["@256", "D=A", "@SP", "M=D"]
 
 # Determine command type
 for vm_basename, instruction in all_instructions:
@@ -363,6 +399,11 @@ for vm_basename, instruction in all_instructions:
         num_locals = parts[2]
         current_function = function_name
         hack_instructions.extend(handle_function_declaration(function_name, num_locals))
+
+    elif command == "call":
+        function_name = parts[1]
+        num_args = parts[2]
+        hack_instructions.extend(handle_function_call(function_name, num_args))
 
     else:
         print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
