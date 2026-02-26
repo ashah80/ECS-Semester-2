@@ -2,8 +2,7 @@ import sys
 import os
 
 ## PROJECT 8: TODOS
-# TODO: Implement function call and return commands (call, function, return)
-# TODO: Implement branching commands (label, goto, if-goto)
+# TODO: Implement function call and return commands (call, return)
 # TODO: Initialize call Sys.init 
 
 
@@ -279,6 +278,20 @@ def handle_if_goto(label):
     This function takes in a label, pops a value from the stack (which is stored in the D register), and returns assembly code that jumps to that label if the value is not equal to 0.
     """
     return pop_from_stack() + [f"@{current_function}${label}", "D;JNE"]
+
+def handle_function_declaration(function_name, num_locals):
+    """
+    Returns assembly code for a function declaration.
+    This function takes in a function name and number of local variables, creates a label for the function, and initializes the local variables to 0 on the stack.
+    """
+    hack_assembly = []
+    # Label for the function declaration
+    hack_assembly += [f"({function_name})"]
+    for i in range(int(num_locals)):
+        hack_assembly += push_constant(0)
+
+    return hack_assembly
+
     
 hack_instructions = []
 # SP initialization to 256
@@ -334,8 +347,8 @@ for vm_basename, instruction in all_instructions:
         if segment == "static":
             hack_instructions.extend(pop_from_static(vm_basename, index))
 
-    # Check for branching and function commands
-    elif command in ["label", "goto"]:
+    # Check for branching commands
+    elif command in ["label", "goto", "if-goto"]:
         label = parts[1]
         if command == "label":
             hack_instructions.extend(handle_label(label))
@@ -343,6 +356,13 @@ for vm_basename, instruction in all_instructions:
             hack_instructions.extend(handle_goto(label))
         if command == "if-goto":
             hack_instructions.extend(handle_if_goto(label))
+    
+    # Check for function commands
+    elif command == "function":
+        function_name = parts[1]
+        num_locals = parts[2]
+        current_function = function_name
+        hack_instructions.extend(handle_function_declaration(function_name, num_locals))
 
     else:
         print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
