@@ -293,6 +293,7 @@ def handle_function_declaration(function_name, num_locals):
 
     return hack_assembly
 
+function_call_counter = 0
 def handle_function_call(function_name, num_args):
     """
     Returns assembly code for a function call.
@@ -328,10 +329,47 @@ def handle_function_call(function_name, num_args):
 
     return hack_assembly
 
+def handle_function_return():
+    """
+    Returns assembly code for a function return.
+    This function stores the return address in ARG, repositions the return value for the caller, restores the caller's SP, LCL, ARG, THIS, THAT pointers, and jumps to the return address.
+    """
+    hack_assembly = []
+
+    # frame (stored in @R13) = LCL
+    hack_assembly += ["@LCL", "D=M", "@R13", "M=D"]
+
+    # retAddr (stored in @R14) = *(frame - 5)
+    hack_assembly += ["@R13", "D=M", "@5", "A=D-A", "D=M", "@R14", "M=D"]
+
+    # *ARG = pop()
+    hack_assembly += pop_from_stack() + ["@ARG", "A=M", "M=D"]
+
+    # SP = ARG + 1
+    hack_assembly += ["@ARG", "D=M", "@SP", "M=D+1"]
+
+    # THAT = *(frame - 1)
+    hack_assembly += ["@R13", "D=M", "@1", "A=D-A", "D=M", "@THAT", "M=D"]
+
+    # THIS = *(frame - 2)
+    hack_assembly += ["@R13", "D=M", "@2", "A=D-A", "D=M", "@THIS", "M=D"]
+
+    # ARG = *(frame - 3)
+    hack_assembly += ["@R13", "D=M", "@3", "A=D-A", "D=M", "@ARG", "M=D"]
+
+    # LCL = *(frame - 4)
+    hack_assembly += ["@R13", "D=M", "@4", "A=D-A", "D=M", "@LCL", "M=D"]
+
+    # goto retAddr
+    hack_assembly += ["@R14", "0;JMP"]
+
+    return hack_assembly
     
 hack_instructions = []
 # SP initialization to 256
 hack_instructions += ["@256", "D=A", "@SP", "M=D"]
+# Call Sys.init
+hack_instructions += handle_function_call("Sys.init", 0)
 
 # Determine command type
 for vm_basename, instruction in all_instructions:
@@ -404,6 +442,9 @@ for vm_basename, instruction in all_instructions:
         function_name = parts[1]
         num_args = parts[2]
         hack_instructions.extend(handle_function_call(function_name, num_args))
+
+    elif command == "return":
+        hack_instructions.extend(handle_function_return())
 
     else:
         print(f"Error: {instruction} is an Unknown Command", file=sys.stderr)
