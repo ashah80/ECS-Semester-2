@@ -44,7 +44,7 @@ for vm_file in vm_files:
             if line and not line.startswith('//'):
                 all_instructions.append((vm_basename, line))
 
-current_function = "PLACEHOLDER"
+current_function = ""
 
 # SP decrementer/incrementer helper function
 def decrement_pointer():
@@ -311,8 +311,8 @@ def handle_function_call(function_name, num_args):
     # Push LCL, ARG, THIS, THAT
     hack_assembly += ["@LCL", "D=M"] + push_D_to_stack()
     hack_assembly += ["@ARG", "D=M"] + push_D_to_stack()
-    hack_assembly += push_from_pointer(0)
-    hack_assembly += push_from_pointer(1)
+    hack_assembly += ["@THIS", "D=M"] + push_D_to_stack()
+    hack_assembly += ["@THAT", "D=M"] + push_D_to_stack()
 
     # Reposition ARG pointer: ARG = SP - num_args - 5 -> # ARG = SP - number_to_subtract 
     number_to_subtract = int(num_args) + 5
@@ -361,15 +361,16 @@ def handle_function_return():
     hack_assembly += ["@R13", "D=M", "@4", "A=D-A", "D=M", "@LCL", "M=D"]
 
     # goto retAddr
-    hack_assembly += ["@R14", "0;JMP"]
+    hack_assembly += ["@R14", "A=M", "0;JMP"]
 
     return hack_assembly
     
 hack_instructions = []
 # SP initialization to 256
 hack_instructions += ["@256", "D=A", "@SP", "M=D"]
-# Call Sys.init
-hack_instructions += handle_function_call("Sys.init", 0)
+# Only call Sys.init when translating a directory
+if os.path.isdir(input_path):
+    hack_instructions += handle_function_call("Sys.init", 0)
 
 # Determine command type
 for vm_basename, instruction in all_instructions:
