@@ -1,12 +1,6 @@
 import sys
 import os
 
-## PROJECT 8: TODOS
-# TODO: Implement function call and return commands (call, return)
-# TODO: Initialize call Sys.init 
-
-
-
 # Get CLI argument for vm file/folder
 
 if len(sys.argv) != 2:
