@@ -1,0 +1,75 @@
+class Main {
+
+    // Shows the start screen and returns the chosen bucket width.
+    function int startScreen() {
+        var int width;
+        var int k;
+        let width = 30;
+
+        // Black background
+        do Screen.setColor(true);
+        do Screen.drawRectangle(0, 0, 511, 255);
+
+        // White text
+        do Screen.setColor(false);
+        do Output.moveCursor(2, 5);
+        do Output.printString("Welcome to the Catching Game! Use a/d to move left/right.");
+        do Output.moveCursor(5, 5);
+        do Output.printString("Use UP / DOWN arrows to set your bucket width.");
+        do Output.moveCursor(6, 5);
+        do Output.printString("Smaller width = more difficult! Max is 50, Min is 15.");
+        do Output.moveCursor(10, 5);
+        do Output.printString("Press ENTER to start.");
+
+        // Update initial bucket width 
+        do Main.updateBucketDisplay(width);
+
+        while (true) {
+            let k = Keyboard.keyPressed();
+            // Increment/decrement width based on key
+            if (~(k = 0)) {
+                if (k = 131) { // up arrow
+                    if (width < 50) {
+                        let width = width + 1;
+                        do Main.updateBucketDisplay(width);
+                    }
+                }
+                if (k = 133) { // down arrow
+                    if (width > 15) {
+                        let width = width - 1;
+                        do Main.updateBucketDisplay(width);
+                    }
+                }
+                if (k = 128) { // enter key -> start game
+                    return width;
+                }
+            }
+            do Sys.wait(40);
+        }
+        return width; // probably unreachable (?) but jack won't compile without it
+    }
+
+    function void updateBucketDisplay(int width) {
+        do Output.moveCursor(8, 5);
+        do Output.printString("Bucket width: ");
+        do Output.printInt(width);
+        return;
+    }
+
+    function void main() {
+        var int width;
+        var DropBoxGame game;
+
+        // Show start screen and get bucket width
+        let width = Main.startScreen();
+
+        // Clear start screen
+        do Screen.clearScreen();
+
+        // Start game
+        let game = DropBoxGame.new(width);
+        do game.run();
+        return;
+    }
+
+}

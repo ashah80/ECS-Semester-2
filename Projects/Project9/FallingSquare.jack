@@ -1,0 +1,53 @@
+class FallingSquare {
+    field int x;
+    field int y;
+    field int size;
+    field int fallSpeed;
+
+    // Draws the FallingSquare on the screen.
+    constructor FallingSquare new(int startX, int startSize, int speed) {
+        let x = startX;
+        let y = 0; // Start at top of screen
+        let size = startSize;
+        let fallSpeed = speed;
+        do draw();
+        return this;
+    }
+
+    // Draws the FallingSquare on the screen.
+    method void draw() {
+        do Screen.setColor(true);
+        do Screen.drawRectangle(x, y, x + size, y + size);
+        return;
+    }
+
+    // Erases the FallingSquare from the screen.
+    method void erase() {
+        do Screen.setColor(false);
+        do Screen.drawRectangle(x, y, x + size, y + size);
+        return;
+    }
+
+    // Moves the FallingSquare down by its fallSpeed pixels.
+    method void moveDown() {
+        if ((y + size) < 255) {
+            do erase();
+            let y = y + fallSpeed;
+            // stop so bottom edge never exceeds screen boundary
+            if ((y + size) > 255) {
+                let y = 255 - size;
+            }
+            do draw();
+        }
+        return;
+    }
+
+    method boolean isAtBottom() {
+        return (y + size) > 254;
+    }
+
+    method int getX() { return x; }
+    method int getY() { return y; }
+    method int getSize() { return size; }
+
+}

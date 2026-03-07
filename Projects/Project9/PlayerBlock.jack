@@ -1,0 +1,56 @@
+class PlayerBlock {
+    field int x;
+    field int y;
+    field int width;
+    field int height;
+
+    method int getX() { return x; }
+    method int getY() { return y; }
+    method int getWidth() { return width; }
+    method int getHeight() { return height; }
+
+    // Constructs a new PlayerBlock with a given location and size.
+    constructor PlayerBlock new(int startX, int startY, int startWidth, int startHeight) {
+        let x = startX;
+        let y = startY;
+        let width = startWidth;
+        let height = startHeight;
+        do draw();
+        return this;
+    }
+
+    // Draws the PlayerBlock on the screen.
+    method void draw() {
+        do Screen.setColor(true);
+        do Screen.drawRectangle(x, y, x+width, y+height);
+        return;
+    }
+
+    // Erases the PlayerBlock from the screen.
+    method void erase() {
+        do Screen.setColor(false);
+        do Screen.drawRectangle(x, y, x + width, y + height);
+        return;
+    }
+
+    // Moves the PlayerBlock left by 10 pixels.
+    method void moveLeft() {
+        if (x > 9) {
+            do erase();
+            let x = x - 10;
+            do draw();
+        }
+        return;
+    }
+
+    // Moves the PlayerBlock right by 10 pixels.
+    method void moveRight() {
+        if ((x + width) < 508) {
+            do erase();
+            let x = x + 10;
+            do draw();
+        }
+        return;
+    }
+
+}
