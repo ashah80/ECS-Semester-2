@@ -8,15 +8,31 @@
 # TODO: Take in multiple jack files and output multiple xml files
 
 import sys
+import os
 
 # Get CLI argument for jack file
-jack_file = ""
-jack_basename = ""
-if len(sys.argv) == 2 and sys.argv[1].endswith('.jack'):
-    jack_file = sys.argv[1]
-    jack_basename = jack_file.replace('.jack', '')
+# Get CLI argument for vm file/folder
+
+if len(sys.argv) != 2:
+    print("Usage: Project10.py <input.jack or directory>", file=sys.stderr)
+    sys.exit()
+
+input_path = sys.argv[1]
+jack_files = []
+
+# If single file
+if os.path.isfile(input_path) and input_path.endswith(".jack"):
+    jack_files = [input_path]
+    output_file = input_path.replace(".jack", ".xml")
+# If directory
+elif os.path.isdir(input_path):
+    for file in os.listdir(input_path):
+        if file.endswith(".jack"):
+            jack_files.append(os.path.join(input_path, file))
+
+    output_file = os.path.join(input_path, os.path.basename(input_path) + ".xml")
 else:
-    print("Usage Error: Project10.py <input_file.jack>", file=sys.stderr)
+    print("Invalid input path", file=sys.stderr)
     sys.exit()
 
 keyword_list = ['class', 'constructor', 'function', 'method', 'field', 'static', 'var', 'int', 'char', 'boolean', 'void', 'true', 'false', 'null', 'this', 'let', 'do', 'if', 'else', 'while', 'return']
@@ -120,13 +136,29 @@ def tokenize_lines(file_lines):
     
     return tokens
 
-file_lines = []
-all_tokens = []
-with open(jack_file, 'r') as file:
-    for line in file:
-        file_lines.append(line)
+for jack_file in jack_files:
+    jack_basename = os.path.basename(jack_file).replace(".jack", "")
+    output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "TMINE.xml")
+    file_lines = []
+    all_tokens = []
+    with open(jack_file, 'r') as file:
+        for line in file:
+            file_lines.append(line)
 
-all_tokens = tokenize_lines(file_lines)
+    all_tokens = tokenize_lines(file_lines)
 
-print("File contests: ", file_lines)
-print("Tokens: ", all_tokens)
+    # Output in xml file
+    with open(output_path, 'w') as xml_file:
+        xml_file.write('<tokens>\n')
+        for token in all_tokens:
+            if token[1] == "<":
+                xml_file.write(f'<{token[0]}> &lt; </{token[0]}>\n')
+            elif token[1] == ">":
+                xml_file.write(f'<{token[0]}> &gt; </{token[0]}>\n')
+            elif token[1] == '"':
+                xml_file.write(f'<{token[0]}> &quot; </{token[0]}>\n')
+            elif token[1] == '&':
+                xml_file.write(f'<{token[0]}> &amp; </{token[0]}>\n')
+            else:
+                xml_file.write(f'<{token[0]}> {token[1]} </{token[0]}>\n')
+        xml_file.write('</tokens>\n')
