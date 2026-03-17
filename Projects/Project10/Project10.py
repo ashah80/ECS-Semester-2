@@ -5,8 +5,6 @@
 # ex. class: 'class' className '{' classVarDec* subroutineDec* '}'
 # classVarDec: ('static' | 'field') type varName (',' varName)* ';'
 
-# TODO: Take in multiple jack files and output multiple xml files
-
 import sys
 import os
 
@@ -135,6 +133,123 @@ def tokenize_lines(file_lines):
             currentWord = ""
     
     return tokens
+
+# Parser class that takes in the list of tokens so that we can keep track of the current token index and write the corresponding XML output for each statement, expression, etc.
+class Parser:
+    def __init__(self, tokens, output_file):
+        self.tokens = tokens
+        self.i = 0
+        self.output_file = output_file
+        self.indent_level = 0
+
+    # Get the current token without advancing the index
+    def get_current_token(self):
+        if self.i < len(self.tokens):
+            return self.tokens[self.i]
+        else:
+            return None
+    
+    # Advance the index to the next token
+    def advance(self):
+        self.i += 1
+
+    # Look at the next token without advancing the index
+    def peek(self):
+        if self.i + 1 < len(self.tokens):
+            return self.tokens[self.i + 1]
+        else:
+            return None
+        
+    # Each indent level corresponds to two spaces in the output XML file
+    def write_line(self, line):
+        self.output_file.write("  " * self.indent_level + line + "\n")
+
+    # Consume the current token and write the corresponding XML output line, handling special characters as needed. Then advance to the next token.
+    def consume_and_print_token(self, expected_type=None, expected_value=None):
+        token_type, token_value = self.get_current_token()
+
+        if expected_type and token_type != expected_type:
+            raise Exception(f"Expected token type {expected_type} but got {token_type}")
+        if expected_value and token_value != expected_value:
+            raise Exception(f"Expected token value {expected_value} but got {token_value}")
+
+        # Handle special characters in XML output
+        val = token_value
+        if val == "<":
+            val = "&lt;"
+        elif val == ">":
+            val = "&gt;"
+        elif val == '"':
+            val = "&quot;"
+        elif val == '&':
+            val = "&amp;"
+        
+        self.write_line(f"<{token_type}> {val} </{token_type}>")
+        self.advance()
+
+    def compile_class(self):
+        self.write_line("<class>")
+        self.indent_level += 1
+
+        # 'class' className '{' classVarDec* subroutineDec* '}'
+        self.consume_and_print_token(expected_type='keyword', expected_value='class')
+        self.consume_and_print_token(expected_type='identifier') # className
+        self.consume_and_print_token(expected_type='symbol', expected_value='{')
+
+        # Handle classVarDec*
+        while self.get_current_token()[1] in ['static', 'field']:
+            self.compile_class_var_dec()
+
+        # Handle subroutineDec*
+        while self.get_current_token()[1] in ['constructor', 'function', 'method']:
+            self.compile_subroutine_dec()
+
+        self.consume_and_print_token(expected_type='symbol', expected_value='}') 
+
+        self.indent_level -= 1
+        self.write_line("</class>")
+        
+
+    def compile_class_var_dec(self):
+        self.write_line("<classVarDec>")
+        self.indent_level += 1
+
+        # ('static' | 'field') type varName (',' varName)* ';'
+        self.consume_and_print_token(expected_type='keyword') # static OR field
+        self.compile_type() # type can be keyword (int, boolean, char) OR identifier (className)
+        self.consume_and_print_token(expected_type='identifier') # varname
+
+        while self.get_current_token()[1] == ',':
+            self.consume_and_print_token(expected_type='symbol', expected_value=',')
+            self.consume_and_print_token(expected_type='identifier') # varname
+        
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+        self.indent_level -= 1
+        self.write_line("</classVarDec>")
+    
+    def compile_type(self):
+        # a type can be keyword (int, boolean, char) OR identifier (className)
+        if self.get_current_token()[1] in ['int', 'char', 'boolean', 'void']:
+            self.consume_and_print_token(expected_type='keyword')
+        else:
+            self.consume_and_print_token(expected_type='identifier')
+
+    def compile_subroutine_dec(self):
+        self.write_line("<subroutineDec>")
+        self.indent_level += 1
+
+        # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
+        self.consume_and_print_token(expected_type='keyword') # constructor OR function OR method
+        self.compile_type() # void OR type, this function handles both
+        self.consume_and_print_token(expected_type='identifier') # subroutineName
+        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+        self.compile_parameter_list()
+        self.consume_and_print_token(expected_type='symbol', expected_value=')')
+        self.compile_subroutine_body()
+
+        self.indent_level -= 1
+        self.write_line("</subroutineDec>")
+
 
 for jack_file in jack_files:
     jack_basename = os.path.basename(jack_file).replace(".jack", "")
