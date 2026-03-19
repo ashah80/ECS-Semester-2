@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Get CLI argument for jack file
+# Get CLI argument for jack file/folder
 if len(sys.argv) != 2:
     print("Usage: Project10.py <input.jack or directory>", file=sys.stderr)
     sys.exit()
@@ -27,105 +27,147 @@ else:
 keyword_list = ['class', 'constructor', 'function', 'method', 'field', 'static', 'var', 'int', 'char', 'boolean', 'void', 'true', 'false', 'null', 'this', 'let', 'do', 'if', 'else', 'while', 'return']
 symbol_list = ['{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&', '|', '<', '>', '=', '~']
 
-# Helper function for tokenizer: Classify the current word as keyword/identifier/integerConstant and add it to the tokens list
-def endCurrentWord(currentWord, tokens):
-    if currentWord:
-        if currentWord in keyword_list:
-            tokens.append(('keyword', currentWord))
-        elif currentWord.isdigit():
-            tokens.append(('integerConstant', currentWord))
-        else:
-            tokens.append(('identifier', currentWord))
+class Tokenizer:
+    def __init__(self, file_path, output_file=None):
+        self.file_path = file_path
+        self.output_file = output_file
+        self.tokens = [] # list of tuples (lexical element, string)
+        # Block comment is the only thing that can span multiple lines, so we need to keep track of whether we're currently in a block comment or not
+        self.in_block_comment = False
 
-# Block comment is the only thing that can span multiple lines, so we need to keep track of whether we're currently in a block comment or not
-in_block_comment = False
-
-# Tokenizer function that takes in the lines of the file and returns a list of tuples (lexical element, string)
-def tokenize_lines(file_lines):
-    global in_block_comment
-    tokens = [] # list of tuples (lexical element, string)
-
-    for line in file_lines:
-        # Loop through character by character keeping track of index 
-        i = 0
-        in_string = False
-        currentWord = ""
-
-        while i < len(line):
-            char = line[i]
-            next_char = ""
-            if i + 1 < len(line):
-                next_char = line[i + 1]
-            else:
-                next_char = ""
-
-            # Handle block comments first, since they can span multiple lines
-            if in_block_comment:
-                if char == '*' and next_char == '/':
-                    in_block_comment = False
-                    i += 2
+    def print_tokens_to_xml(self, all_tokens, output_file):
+        with open(output_file, 'w') as xml_file:
+            xml_file.write('<tokens>\n')
+            for token in all_tokens:
+                if token[1] == "<":
+                    xml_file.write(f'<{token[0]}> &lt; </{token[0]}>\n')
+                elif token[1] == ">":
+                    xml_file.write(f'<{token[0]}> &gt; </{token[0]}>\n')
+                elif token[1] == '"':
+                    xml_file.write(f'<{token[0]}> &quot; </{token[0]}>\n')
+                elif token[1] == '&':
+                    xml_file.write(f'<{token[0]}> &amp; </{token[0]}>\n')
                 else:
-                    i += 1
-                continue
+                    xml_file.write(f'<{token[0]}> {token[1]} </{token[0]}>\n')
+            xml_file.write('</tokens>\n')
 
-            # Handle being inside string constants
-            if in_string:
-                if char == '"':
-                    in_string = False
-                    tokens.append(('stringConstant', currentWord))
-                    currentWord = ""
-                else:
-                    currentWord += char
-                i += 1
-                continue
 
-            # Handle starting a string 
-            if char == '"':
-                in_string = True
-                i += 1
-                continue
-
-            # Handle // comments by ignoring the rest of the line
-            if char == '/' and next_char == '/':
-                break
-
-            # Handle /* comments by entering block comment mode
-            if char == '/' and next_char == '*':
-                in_block_comment = True
-                i += 2
-                continue
-
-            # Handle symbols
-            if char in symbol_list:
-                # end the current word if symbol is hit
-                if currentWord != "":
-                    currentWord = endCurrentWord(currentWord, tokens)
-                    currentWord = ""
-                tokens.append(('symbol', char))
-                i += 1
-                continue
-
-            # Whitespace -> end current word
-            if char.isspace():
-                if currentWord != "":
-                    currentWord = endCurrentWord(currentWord, tokens)
-                    currentWord = ""
-                i += 1
-                continue
-
-            # Otherwise, add character to current word
-            currentWord += char
-            i += 1
-
-        # At end of line, end current word
-        if currentWord != "":
-            currentWord = endCurrentWord(currentWord, tokens)
-            currentWord = ""
+        
+    def tokenize(self):
+        """
+        Main function for tokenizer: Read in the file, tokenize it, and return the list of tokens as tuples (lexical element, string)
+        """
+        with open(self.file_path, 'r') as file:
+            file_lines = file.readlines()
+            self.tokens = self.tokenize_lines(file_lines)
+        return self.tokens
     
-    return tokens
+    def endCurrentWord(self, currentWord, tokens):
+        """
+        Helper function for tokenizer: Classify the current word as keyword/identifier/integerConstant and add it to the tokens list
+        """
+        if currentWord:
+            if currentWord in keyword_list:
+                tokens.append(('keyword', currentWord))
+            elif currentWord.isdigit():
+                tokens.append(('integerConstant', currentWord))
+            else:
+                tokens.append(('identifier', currentWord))
+        currentWord = ""
+        return currentWord
 
-# Parser class that takes in the list of tokens so that we can keep track of the current token index and write the corresponding XML output for each statement, expression, etc.
+    def tokenize_lines(self, file_lines):
+        """
+        Tokenizer function that takes in the lines of the file and returns a list of tuples (lexical element, string)
+        """
+        tokens = [] # list of tuples (lexical element, string)
+
+        for line in file_lines:
+            # Loop through character by character keeping track of index 
+            i = 0
+            in_string = False
+            currentWord = ""
+
+            while i < len(line):
+                char = line[i]
+                next_char = ""
+                if i + 1 < len(line):
+                    next_char = line[i + 1]
+                else:
+                    next_char = ""
+
+                # Handle block comments first, since they can span multiple lines
+                if self.in_block_comment:
+                    if char == '*' and next_char == '/':
+                        self.in_block_comment = False
+                        i += 2
+                    else:
+                        i += 1
+                    continue
+
+                # Handle being inside string constants
+                if in_string:
+                    if char == '"':
+                        in_string = False
+                        tokens.append(('stringConstant', currentWord))
+                        currentWord = ""
+                    else:
+                        currentWord += char
+                    i += 1
+                    continue
+
+                # Handle starting a string 
+                if char == '"':
+                    in_string = True
+                    i += 1
+                    continue
+
+                # Handle // comments by ignoring the rest of the line
+                if char == '/' and next_char == '/':
+                    break
+
+                # Handle /* comments by entering block comment mode
+                if char == '/' and next_char == '*':
+                    self.in_block_comment = True
+                    i += 2
+                    continue
+
+                # Handle symbols
+                if char in symbol_list:
+                    # end the current word if symbol is hit
+                    if currentWord != "":
+                        currentWord = self.endCurrentWord(currentWord, tokens)
+                        currentWord = ""
+                    tokens.append(('symbol', char))
+                    i += 1
+                    continue
+
+                # Whitespace -> end current word
+                if char.isspace():
+                    if currentWord != "":
+                        currentWord = self.endCurrentWord(currentWord, tokens)
+                        currentWord = ""
+                    i += 1
+                    continue
+
+                # Otherwise, add character to current word
+                currentWord += char
+                i += 1
+
+            # At end of line, end current word
+            if currentWord != "":
+                currentWord = self.endCurrentWord(currentWord, tokens)
+                currentWord = ""
+        
+        return tokens    
+    
+
+
+
 class Parser:
+    """
+    Parser class that takes in the list of tokens so that we can keep track of the current token index and write the corresponding XML output for each statement, expression, etc.
+    """
     def __init__(self, tokens, output_file):
         self.tokens = tokens
         self.i = 0
@@ -154,8 +196,10 @@ class Parser:
     def write_line(self, line):
         self.output_file.write("  " * self.indent_level + line + "\n")
 
-    # Consume the current token and write the corresponding XML output line, handling special characters as needed. Then advance to the next token.
     def consume_and_print_token(self, expected_type=None, expected_value=None):
+        """
+        Consume the current token and write the corresponding XML output line (after checking that the type and value match, if provided), handling special characters as needed. Then advance to the next token.
+        """
         token_type, token_value = self.get_current_token()
 
         if expected_type and token_type != expected_type:
@@ -226,7 +270,7 @@ class Parser:
 
     def is_type(self):
         # check to make sure a given token is a type
-        if self.get_current_token()[1] in ['int', 'char', 'boolean', 'void']:
+        if self.get_current_token()[1] in ['int', 'char', 'boolean']:
             return True
         elif self.get_current_token()[0] == 'identifier':
             return True
@@ -487,23 +531,9 @@ for jack_file in jack_files:
             file_lines.append(line)
 
     # Get tokens
-    all_tokens = tokenize_lines(file_lines)
-
-    # Write tokens to XML file
-    with open(tokenizer_output_path, 'w') as xml_file:
-        xml_file.write('<tokens>\n')
-        for token in all_tokens:
-            if token[1] == "<":
-                xml_file.write(f'<{token[0]}> &lt; </{token[0]}>\n')
-            elif token[1] == ">":
-                xml_file.write(f'<{token[0]}> &gt; </{token[0]}>\n')
-            elif token[1] == '"':
-                xml_file.write(f'<{token[0]}> &quot; </{token[0]}>\n')
-            elif token[1] == '&':
-                xml_file.write(f'<{token[0]}> &amp; </{token[0]}>\n')
-            else:
-                xml_file.write(f'<{token[0]}> {token[1]} </{token[0]}>\n')
-        xml_file.write('</tokens>\n')
+    tokenizer = Tokenizer(jack_file)
+    all_tokens = tokenizer.tokenize()
+    tokenizer.print_tokens_to_xml(all_tokens, tokenizer_output_path)
 
     # Write parsed output to XML file
     with open(parser_output_path, 'w') as xml_file:
