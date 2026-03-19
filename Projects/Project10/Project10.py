@@ -1,16 +1,7 @@
-# TODO: Parser
-## go through recursively and handle each kind of statement, expression, etc. and write the corresponding XML output
-## for index tracking, use some kind of token.advance() method to move through the list of tokens and keep track of the current token index
-# start with compile_class, then compile necessary subroutines
-# ex. class: 'class' className '{' classVarDec* subroutineDec* '}'
-# classVarDec: ('static' | 'field') type varName (',' varName)* ';'
-
 import sys
 import os
 
 # Get CLI argument for jack file
-# Get CLI argument for vm file/folder
-
 if len(sys.argv) != 2:
     print("Usage: Project10.py <input.jack or directory>", file=sys.stderr)
     sys.exit()
@@ -36,8 +27,7 @@ else:
 keyword_list = ['class', 'constructor', 'function', 'method', 'field', 'static', 'var', 'int', 'char', 'boolean', 'void', 'true', 'false', 'null', 'this', 'let', 'do', 'if', 'else', 'while', 'return']
 symbol_list = ['{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&', '|', '<', '>', '=', '~']
 
-# Helper functions
-# Classify the current word as keyword/identifier/integerConstant and add it to the tokens list
+# Helper function for tokenizer: Classify the current word as keyword/identifier/integerConstant and add it to the tokens list
 def endCurrentWord(currentWord, tokens):
     if currentWord:
         if currentWord in keyword_list:
@@ -487,17 +477,20 @@ class Parser:
 
 for jack_file in jack_files:
     jack_basename = os.path.basename(jack_file).replace(".jack", "")
-    output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "TMINE.xml")
+    tokenizer_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "TAarav.xml")
+    parser_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "Aarav.xml")
+
     file_lines = []
     all_tokens = []
     with open(jack_file, 'r') as file:
         for line in file:
             file_lines.append(line)
 
+    # Get tokens
     all_tokens = tokenize_lines(file_lines)
 
-    # Output in xml file
-    with open(output_path, 'w') as xml_file:
+    # Write tokens to XML file
+    with open(tokenizer_output_path, 'w') as xml_file:
         xml_file.write('<tokens>\n')
         for token in all_tokens:
             if token[1] == "<":
@@ -511,3 +504,11 @@ for jack_file in jack_files:
             else:
                 xml_file.write(f'<{token[0]}> {token[1]} </{token[0]}>\n')
         xml_file.write('</tokens>\n')
+
+    # Write parsed output to XML file
+    with open(parser_output_path, 'w') as xml_file:
+        parser = Parser(all_tokens, xml_file)
+        parser.compile_class()
+
+
+
