@@ -229,18 +229,31 @@ class Parser:
     
     def compile_type(self):
         # a type can be keyword (int, boolean, char) OR identifier (className)
-        if self.get_current_token()[1] in ['int', 'char', 'boolean', 'void']:
+        if self.get_current_token()[1] in ['int', 'char', 'boolean']:
             self.consume_and_print_token(expected_type='keyword')
         else:
             self.consume_and_print_token(expected_type='identifier')
 
+    def is_type(self):
+        # check to make sure a given token is a type
+        if self.get_current_token()[1] in ['int', 'char', 'boolean', 'void']:
+            return True
+        elif self.get_current_token()[0] == 'identifier':
+            return True
+        else:            
+            return False
+        
+
     def compile_subroutine_dec(self):
-        self.write_line("<subroutineDec>")
+        self.write_line('<subroutineDec>')
         self.indent_level += 1
 
         # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
         self.consume_and_print_token(expected_type='keyword') # constructor OR function OR method
-        self.compile_type() # void OR type, this function handles both
+        if self.get_current_token()[1] == 'void':
+            self.consume_and_print_token(expected_type='keyword', expected_value='void') # handle void return type
+        else:
+            self.compile_type() # type can be keyword (int, boolean, char) OR identifier (className)
         self.consume_and_print_token(expected_type='identifier') # subroutineName
         self.consume_and_print_token(expected_type='symbol', expected_value='(')
         self.compile_parameter_list()
@@ -248,8 +261,229 @@ class Parser:
         self.compile_subroutine_body()
 
         self.indent_level -= 1
-        self.write_line("</subroutineDec>")
+        self.write_line('</subroutineDec>')
 
+    def compile_parameter_list(self):
+        self.write_line('<parameterList>')
+        self.indent_level += 1
+
+        # ((type varName) (',' type varName)*)?
+        if self.is_type():
+            self.compile_type()
+            self.consume_and_print_token(expected_type='identifier') # varName
+
+            while self.get_current_token()[1] == ',':
+                self.consume_and_print_token(expected_type='symbol', expected_value=',')
+                self.compile_type()
+                self.consume_and_print_token(expected_type='identifier') # varName
+
+        self.indent_level -= 1
+        self.write_line('</parameterList>')
+    
+    def compile_subroutine_body(self):
+        self.write_line('<subroutineBody>')
+        self.indent_level += 1
+
+        # '{' varDec* statements '}'
+        self.consume_and_print_token(expected_type='symbol', expected_value='{')
+        while self.get_current_token()[1] == 'var':
+            self.compile_var_dec()
+        self.compile_statements()
+        self.consume_and_print_token(expected_type='symbol', expected_value='}')
+
+        self.indent_level -= 1
+        self.write_line('</subroutineBody>')
+
+    def compile_var_dec(self):
+        self.write_line('<varDec>')
+        self.indent_level += 1
+
+        # 'var' type varName (',' varName)* ';'
+        self.consume_and_print_token(expected_type='keyword', expected_value='var')
+        self.compile_type()
+        self.consume_and_print_token(expected_type='identifier') # varName
+        while self.get_current_token()[1] == ',':
+            self.consume_and_print_token(expected_type='symbol', expected_value=',')
+            self.consume_and_print_token(expected_type='identifier') # varName
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+
+        self.indent_level -= 1
+        self.write_line('</varDec>')
+
+    def compile_statements(self):
+        self.write_line('<statements>')
+        self.indent_level += 1
+
+        # statements: statement*
+        # statement: letStatement | ifStatement | whileStatement | doStatement | returnStatement
+        while self.get_current_token()[1] in ['let', 'if', 'while', 'do', 'return']:
+            if self.get_current_token()[1] == 'let':
+                self.compile_let_statement()
+            elif self.get_current_token()[1] == 'if':
+                self.compile_if_statement()
+            elif self.get_current_token()[1] == 'while':
+                self.compile_while_statement()
+            elif self.get_current_token()[1] == 'do':
+                self.compile_do_statement()
+            elif self.get_current_token()[1] == 'return':
+                self.compile_return_statement()
+
+        self.indent_level -= 1
+        self.write_line('</statements>')
+    
+    def compile_let_statement(self):
+        self.write_line('<letStatement>')
+        self.indent_level += 1
+
+        # 'let' varName ('[' expression ']')? '=' expression ';'
+        self.consume_and_print_token(expected_type='keyword', expected_value='let')
+        self.consume_and_print_token(expected_type='identifier') # varName
+        if self.get_current_token()[1] == '[':
+            self.consume_and_print_token(expected_type='symbol', expected_value='[')
+            self.compile_expression()
+            self.consume_and_print_token(expected_type='symbol', expected_value=']')
+        self.consume_and_print_token(expected_type='symbol', expected_value='=')
+        self.compile_expression()
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+
+        self.indent_level -= 1
+        self.write_line('</letStatement>')
+
+
+    def compile_if_statement(self):
+        self.write_line('<ifStatement>')
+        self.indent_level += 1
+
+        # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
+        self.consume_and_print_token(expected_type='keyword', expected_value='if')
+        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+        self.compile_expression()
+        self.consume_and_print_token(expected_type='symbol', expected_value=')')
+        self.consume_and_print_token(expected_type='symbol', expected_value='{')
+        self.compile_statements()
+        self.consume_and_print_token(expected_type='symbol', expected_value='}')
+        if self.get_current_token()[1] == 'else':
+            self.consume_and_print_token(expected_type='keyword', expected_value='else')
+            self.consume_and_print_token(expected_type='symbol', expected_value='{')
+            self.compile_statements()
+            self.consume_and_print_token(expected_type='symbol', expected_value='}')
+
+        self.indent_level -= 1
+        self.write_line('</ifStatement>')
+
+    def compile_while_statement(self):
+        self.write_line('<whileStatement>')
+        self.indent_level += 1
+
+        # 'while' '(' expression ')' '{' statements '}'
+        self.consume_and_print_token(expected_type='keyword', expected_value='while')
+        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+        self.compile_expression()
+        self.consume_and_print_token(expected_type='symbol', expected_value=')')
+        self.consume_and_print_token(expected_type='symbol', expected_value='{')
+        self.compile_statements()
+        self.consume_and_print_token(expected_type='symbol', expected_value='}')
+
+        self.indent_level -= 1
+        self.write_line('</whileStatement>')
+
+    def compile_do_statement(self):
+        self.write_line('<doStatement>')
+        self.indent_level += 1
+
+        # 'do' subroutineCall ';'
+        self.consume_and_print_token(expected_type='keyword', expected_value='do')
+        self.compile_subroutine_call()
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+
+        self.indent_level -= 1
+        self.write_line('</doStatement>')
+
+    def compile_return_statement(self):
+        self.write_line('<returnStatement>')
+        self.indent_level += 1
+
+        # 'return' expression? ';'
+        self.consume_and_print_token(expected_type='keyword', expected_value='return')
+        if self.get_current_token()[1] != ';':
+            self.compile_expression()
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+
+        self.indent_level -= 1
+        self.write_line('</returnStatement>')
+
+    def compile_expression(self):
+        self.write_line('<expression>')
+        self.indent_level += 1
+
+        # term (op term)*
+        self.compile_term()
+        while self.get_current_token()[1] in ['+', '-', '*', '/', '&', '|', '<', '>', '=']:
+            self.consume_and_print_token(expected_type='symbol') # op
+            self.compile_term()
+
+        self.indent_level -= 1
+        self.write_line('</expression>')
+
+    def compile_term(self):
+        self.write_line('<term>')
+        self.indent_level += 1
+
+        # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
+        if self.get_current_token()[0] == 'integerConstant': # integerConstant
+            self.consume_and_print_token(expected_type='integerConstant')
+        elif self.get_current_token()[0] == 'stringConstant': # stringConstant
+            self.consume_and_print_token(expected_type='stringConstant')
+        elif self.get_current_token()[1] in ['true', 'false', 'null', 'this']: # keywordConstant
+            self.consume_and_print_token(expected_type='keyword')
+        elif self.get_current_token()[1] == '(': # expression
+            self.consume_and_print_token(expected_type='symbol', expected_value='(')
+            self.compile_expression()
+            self.consume_and_print_token(expected_type='symbol', expected_value=')')
+        elif self.get_current_token()[1] in ['-', '~']: # unaryOp
+            self.consume_and_print_token(expected_type='symbol')
+            self.compile_term()
+        else:
+            # Differentiate between varName and subRoutineCall by looking ahead for a '('
+            if self.peek()[1] in ['(', '.']: # subroutineCall 
+                self.compile_subroutine_call()
+            else: # varName, need to differentiate between varName and varName '[' expression ']'
+                self.consume_and_print_token(expected_type='identifier') # varName
+                if self.get_current_token()[1] == '[':
+                    self.consume_and_print_token(expected_type='symbol', expected_value='[')
+                    self.compile_expression()
+                    self.consume_and_print_token(expected_type='symbol', expected_value=']')
+
+        self.indent_level -= 1
+        self.write_line('</term>')
+
+    def compile_subroutine_call(self):
+        # not wrapped in a tag for some reason?
+
+        # subroutineName '(' expressionList ')' | (className | varName) '.' subroutineName '(' expressionList ')'
+        self.consume_and_print_token(expected_type='identifier') # subroutineName OR className OR varName
+        if self.get_current_token()[1] == '.': # period is only preceded by className or varName, not subroutineName
+            self.consume_and_print_token(expected_type='symbol', expected_value='.')
+            self.consume_and_print_token(expected_type='identifier') # subroutineName
+        # compile the '(' expressionList ')' part no matter what
+        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+        self.compile_expression_list()
+        self.consume_and_print_token(expected_type='symbol', expected_value=')')
+
+    def compile_expression_list(self):
+        self.write_line('<expressionList>')
+        self.indent_level += 1
+
+        # (expression (',' expression)*)?
+        if self.get_current_token()[1] != ')': # if the next token is a ')' then the expression list is empty (because the expression list is always followed by a ')')
+            self.compile_expression()
+            # repeat until no more expressions are left, which is indicated by no more commas
+            while self.get_current_token()[1] == ',':
+                self.consume_and_print_token(expected_type='symbol', expected_value=',')
+                self.compile_expression()
+
+        self.indent_level -= 1
+        self.write_line('</expressionList>')
 
 for jack_file in jack_files:
     jack_basename = os.path.basename(jack_file).replace(".jack", "")
