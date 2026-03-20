@@ -521,8 +521,8 @@ class Parser:
 
 for jack_file in jack_files:
     jack_basename = os.path.basename(jack_file).replace(".jack", "")
-    tokenizer_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "TAarav.xml")
-    parser_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "Aarav.xml")
+    tokenizer_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "T.xml")
+    parser_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + ".xml")
 
     file_lines = []
     all_tokens = []
