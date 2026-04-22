@@ -233,28 +233,27 @@ class Parser:
         self.consume_token(expected_type='symbol', expected_value='}') 
 
     def compile_class_var_dec(self):
-        self.write_line("<classVarDec>")
-        self.indent_level += 1
-
         # ('static' | 'field') type varName (',' varName)* ';'
-        self.consume_and_print_token(expected_type='keyword') # static OR field
-        self.compile_type() # type can be keyword (int, boolean, char) OR identifier (className)
-        self.consume_and_print_token(expected_type='identifier') # varname
+        kind = self.consume_token(expected_type='keyword') # static OR field
+        var_type = self.compile_type() # type can be keyword (int, boolean, char) OR identifier (className)
+        var_name = self.consume_token(expected_type='identifier') # varname
+        self.class_table.define(var_name, var_type, kind) # add class-level variable to symbol table
 
         while self.get_current_token()[1] == ',':
-            self.consume_and_print_token(expected_type='symbol', expected_value=',')
-            self.consume_and_print_token(expected_type='identifier') # varname
+            self.consume_token(expected_type='symbol', expected_value=',')
+            var_name = self.consume_token(expected_type='identifier') # varname
+            self.class_table.define(var_name, var_type, kind)
         
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
-        self.indent_level -= 1
-        self.write_line("</classVarDec>")
+        self.consume_token(expected_type='symbol', expected_value=';')
     
     def compile_type(self):
         # a type can be keyword (int, boolean, char) OR identifier (className)
+        token = self.get_current_token()
         if self.get_current_token()[1] in ['int', 'char', 'boolean']:
-            self.consume_and_print_token(expected_type='keyword')
+            self.consume_token(expected_type='keyword')
         else:
-            self.consume_and_print_token(expected_type='identifier')
+            self.consume_token(expected_type='identifier')
+        return token[1]
 
     def is_type(self):
         # check to make sure a given token is a type
@@ -265,7 +264,7 @@ class Parser:
         else:            
             return False
         
-
+    # TODO: Fix
     def compile_subroutine_dec(self):
         self.write_line('<subroutineDec>')
         self.indent_level += 1
@@ -285,6 +284,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</subroutineDec>')
 
+    #TODO: Fix
     def compile_parameter_list(self):
         self.write_line('<parameterList>')
         self.indent_level += 1
@@ -302,36 +302,32 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</parameterList>')
     
+    # TODO: Fix
     def compile_subroutine_body(self):
-        self.write_line('<subroutineBody>')
-        self.indent_level += 1
-
         # '{' varDec* statements '}'
-        self.consume_and_print_token(expected_type='symbol', expected_value='{')
+        self.consume_token(expected_type='symbol', expected_value='{')
         while self.get_current_token()[1] == 'var':
             self.compile_var_dec()
         self.compile_statements()
-        self.consume_and_print_token(expected_type='symbol', expected_value='}')
-
-        self.indent_level -= 1
-        self.write_line('</subroutineBody>')
+        self.consume_token(expected_type='symbol', expected_value='}')
 
     def compile_var_dec(self):
-        self.write_line('<varDec>')
-        self.indent_level += 1
-
         # 'var' type varName (',' varName)* ';'
-        self.consume_and_print_token(expected_type='keyword', expected_value='var')
-        self.compile_type()
-        self.consume_and_print_token(expected_type='identifier') # varName
+        self.consume_token(expected_type='keyword', expected_value='var')
+        var_type = self.compile_type()
+        var_name = self.consume_token(expected_type='identifier') # varName
+        self.subroutine_table.define(var_name, var_type, 'local') # add subroutine-level variable to symbol table
+
         while self.get_current_token()[1] == ',':
-            self.consume_and_print_token(expected_type='symbol', expected_value=',')
-            self.consume_and_print_token(expected_type='identifier') # varName
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+            self.consume_token(expected_type='symbol', expected_value=',')
+            var_name = self.consume_token(expected_type='identifier') # varName
+            self.subroutine_table.define(var_name, var_type, 'local')
+        self.consume_token(expected_type='symbol', expected_value=';')
 
         self.indent_level -= 1
         self.write_line('</varDec>')
 
+    # TODO: Fix
     def compile_statements(self):
         self.write_line('<statements>')
         self.indent_level += 1
@@ -353,6 +349,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</statements>')
     
+    # TODO: Fix
     def compile_let_statement(self):
         self.write_line('<letStatement>')
         self.indent_level += 1
@@ -371,7 +368,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</letStatement>')
 
-
+    # TODO: Fix
     def compile_if_statement(self):
         self.write_line('<ifStatement>')
         self.indent_level += 1
@@ -393,6 +390,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</ifStatement>')
 
+    # TODO: Fix
     def compile_while_statement(self):
         self.write_line('<whileStatement>')
         self.indent_level += 1
@@ -409,6 +407,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</whileStatement>')
 
+    # TODO: Fix
     def compile_do_statement(self):
         self.write_line('<doStatement>')
         self.indent_level += 1
@@ -421,6 +420,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</doStatement>')
 
+    # TODO: Fix
     def compile_return_statement(self):
         self.write_line('<returnStatement>')
         self.indent_level += 1
@@ -434,6 +434,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</returnStatement>')
 
+    # TODO: Fix
     def compile_expression(self):
         self.write_line('<expression>')
         self.indent_level += 1
@@ -447,6 +448,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</expression>')
 
+    # TODO: Fix
     def compile_term(self):
         self.write_line('<term>')
         self.indent_level += 1
@@ -479,6 +481,7 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</term>')
 
+    # TODO: Fix
     def compile_subroutine_call(self):
         # not wrapped in a tag for some reason?
 
@@ -492,6 +495,7 @@ class Parser:
         self.compile_expression_list()
         self.consume_and_print_token(expected_type='symbol', expected_value=')')
 
+    # TODO: Fix
     def compile_expression_list(self):
         self.write_line('<expressionList>')
         self.indent_level += 1
@@ -513,12 +517,12 @@ class SymbolTable:
     """
     def __init__(self):
         self.table = {} # dictionary mapping variable names to a tuple of (type , kind, index)
-        self.counters = {'static': 0, 'field': 0, 'arg': 0, 'var': 0}
+        self.counters = {'static': 0, 'field': 0, 'argument': 0, 'local': 0}
     
     # Wipe the table and reset the counters, to be used when starting to compile a new subroutine (since subroutine-level variables go out of scope and we need to start fresh for the next subroutine)
     def reset(self):
         self.table = {}
-        self.counters = {'static': 0, 'field': 0, 'arg': 0, 'var': 0}
+        self.counters = {'static': 0, 'field': 0, 'argument': 0, 'local': 0}
 
     # Define a new variable and assign it an index based on how many variables of the same kind have already been defined.
     def define(self, name, var_type, kind):
