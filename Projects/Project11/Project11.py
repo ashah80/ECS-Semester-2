@@ -264,50 +264,64 @@ class Parser:
         else:            
             return False
         
-    # TODO: Fix
     def compile_subroutine_dec(self):
-        self.write_line('<subroutineDec>')
-        self.indent_level += 1
-
         # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
-        self.consume_and_print_token(expected_type='keyword') # constructor OR function OR method
+        self.subroutine_table.reset() # reset for each new subroutine 
+
+        subroutine_type = self.consume_token(expected_type='keyword') # constructor OR function OR method
         if self.get_current_token()[1] == 'void':
-            self.consume_and_print_token(expected_type='keyword', expected_value='void') # handle void return type
+            self.consume_token(expected_type='keyword', expected_value='void') # handle void return type
         else:
             self.compile_type() # type can be keyword (int, boolean, char) OR identifier (className)
-        self.consume_and_print_token(expected_type='identifier') # subroutineName
-        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+
+        subroutine_name = self.consume_token(expected_type='identifier') # subroutineName
+        # Methods get "this" as the first argument 
+        if subroutine_type == 'method':
+            self.subroutine_table.define('this', self.class_name, 'argument') # add "this" to symbol table as the first argument
+
+        self.consume_token(expected_type='symbol', expected_value='(')
         self.compile_parameter_list()
-        self.consume_and_print_token(expected_type='symbol', expected_value=')')
-        self.compile_subroutine_body()
+        self.consume_token(expected_type='symbol', expected_value=')')
+        self.compile_subroutine_body(subroutine_name, subroutine_type)
 
-        self.indent_level -= 1
-        self.write_line('</subroutineDec>')
-
-    #TODO: Fix
     def compile_parameter_list(self):
-        self.write_line('<parameterList>')
-        self.indent_level += 1
-
         # ((type varName) (',' type varName)*)?
+
         if self.is_type():
-            self.compile_type()
-            self.consume_and_print_token(expected_type='identifier') # varName
+            var_type = self.compile_type()
+            var_name = self.consume_token(expected_type='identifier') # varName
+            self.subroutine_table.define(var_name, var_type, 'argument')
 
             while self.get_current_token()[1] == ',':
-                self.consume_and_print_token(expected_type='symbol', expected_value=',')
-                self.compile_type()
-                self.consume_and_print_token(expected_type='identifier') # varName
-
-        self.indent_level -= 1
-        self.write_line('</parameterList>')
+                self.consume_token(expected_type='symbol', expected_value=',')
+                var_type = self.compile_type()
+                var_name = self.consume_token(expected_type='identifier') # varName
+                self.subroutine_table.define(var_name, var_type, 'argument')
     
-    # TODO: Fix
-    def compile_subroutine_body(self):
+    def compile_subroutine_body(self, subroutine_name, subroutine_type):
         # '{' varDec* statements '}'
         self.consume_token(expected_type='symbol', expected_value='{')
+
         while self.get_current_token()[1] == 'var':
             self.compile_var_dec()
+
+        # Now we know how many locals there are so we can write the function declaration in VM ("function ClassName.subroutineName nLocals")
+        n_locals = self.subroutine_table.counters['local']
+        write_vm_function(self.vm_file, f"{self.class_name}.{subroutine_name}", n_locals)
+
+        # Compiling constructors/methods preamble
+        if subroutine_type == 'constructor':
+            # For constructors, we need to allocate memory for the object and set "this" to point to that memory
+            n_fields = self.class_table.counters['field']
+            write_vm_push(self.vm_file, 'constant', n_fields) # push the number of fields (the size of the object)
+            write_vm_call(self.vm_file, 'Memory.alloc', 1) # call Memory.alloc to allocate that much memory, which leaves the base address of the allocated memory on the stack
+            write_vm_pop(self.vm_file, 'pointer', 0) # pop that base address into pointer 0, which sets "this" to point to the allocated memory
+
+        elif subroutine_type == 'method':
+            # For methods, we need to set "this" to point to the object that the method is being called on, which is passed as the first argument (argument 0)
+            write_vm_push(self.vm_file, 'argument', 0) # push argument 0, which is the base address of the object that the method is being called on
+            write_vm_pop(self.vm_file, 'pointer', 0) # pop that base address into pointer 0, which sets "this" to point to the object
+
         self.compile_statements()
         self.consume_token(expected_type='symbol', expected_value='}')
 
@@ -527,6 +541,8 @@ class SymbolTable:
     # Define a new variable and assign it an index based on how many variables of the same kind have already been defined.
     def define(self, name, var_type, kind):
         index = self.counters[kind]
+        if kind == 'field':
+            kind = 'this' # field variables are accessed with the "this" segment in VM (everything else is reference by its regular name)
         self.table[name] = (var_type, kind, index)
         self.counters[kind] += 1
 
