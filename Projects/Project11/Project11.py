@@ -442,19 +442,17 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</doStatement>')
 
-    # TODO: Fix
     def compile_return_statement(self):
-        self.write_line('<returnStatement>')
-        self.indent_level += 1
-
         # 'return' expression? ';'
+        
         self.consume_and_print_token(expected_type='keyword', expected_value='return')
         if self.get_current_token()[1] != ';':
             self.compile_expression()
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+        else:
+            write_vm_push(self.vm_file, 'constant', 0) # "push constant 0" for void functions
 
-        self.indent_level -= 1
-        self.write_line('</returnStatement>')
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+        write_vm_return(self.vm_file)
 
     def compile_expression(self):
         # term (op term)*
