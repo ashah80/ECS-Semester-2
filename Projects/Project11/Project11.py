@@ -435,22 +435,29 @@ class Parser:
         else:
             write_vm_label(self.vm_file, false_label) # if no else condition, just skip the branch if condition is false
 
-    # TODO: Fix
     def compile_while_statement(self):
-        self.write_line('<whileStatement>')
-        self.indent_level += 1
-
         # 'while' '(' expression ')' '{' statements '}'
-        self.consume_and_print_token(expected_type='keyword', expected_value='while')
-        self.consume_and_print_token(expected_type='symbol', expected_value='(')
-        self.compile_expression()
-        self.consume_and_print_token(expected_type='symbol', expected_value=')')
-        self.consume_and_print_token(expected_type='symbol', expected_value='{')
-        self.compile_statements()
-        self.consume_and_print_token(expected_type='symbol', expected_value='}')
 
-        self.indent_level -= 1
-        self.write_line('</whileStatement>')
+        current_label_num = self.label_count
+        self.label_count += 1
+        start_label = f"WHILE_START_L{current_label_num}"
+        end_label = f"WHILE_END_L{current_label_num}"
+
+        self.consume_token(expected_type='keyword', expected_value='while')
+        self.consume_token(expected_type='symbol', expected_value='(')
+
+        write_vm_label(self.vm_file, start_label) # write start label to jump back to for re-evaluating condition
+        self.compile_expression() # pushes condition
+        write_vm_arithmetic(self.vm_file, 'not') # negate condition
+        write_vm_if(self.vm_file, end_label) # if NOT condition, jump to end
+
+        self.consume_token(expected_type='symbol', expected_value=')')
+        self.consume_token(expected_type='symbol', expected_value='{')
+        self.compile_statements() # compile while body
+        self.consume_token(expected_type='symbol', expected_value='}')
+
+        write_vm_goto(self.vm_file, start_label) # jump back to start to re-evaluate condition
+        write_vm_label(self.vm_file, end_label) # write end label to jump to when condition is false
 
     def compile_do_statement(self):
         # 'do' subroutineCall ';'
