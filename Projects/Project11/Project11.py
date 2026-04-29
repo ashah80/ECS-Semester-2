@@ -204,11 +204,6 @@ class Parser:
             return var_info
         else:
             return self.class_table.get_var(name)
-        
-    # TODO: Delete all print statements, then delete this function, bc im no longer printing XML
-    def write_line(self, line):
-        # self.vm_file.write("  " * self.indent_level + line + "\n")
-        pass
 
     def consume_token(self, expected_type=None, expected_value=None):
         """
@@ -347,14 +342,8 @@ class Parser:
             self.subroutine_table.define(var_name, var_type, 'local')
         self.consume_token(expected_type='symbol', expected_value=';')
 
-        self.indent_level -= 1
-        self.write_line('</varDec>')
 
-    # TODO: Fix
     def compile_statements(self):
-        self.write_line('<statements>')
-        self.indent_level += 1
-
         # statements: statement*
         # statement: letStatement | ifStatement | whileStatement | doStatement | returnStatement
         while self.get_current_token()[1] in ['let', 'if', 'while', 'do', 'return']:
@@ -369,23 +358,23 @@ class Parser:
             elif self.get_current_token()[1] == 'return':
                 self.compile_return_statement()
 
-        self.indent_level -= 1
-        self.write_line('</statements>')
-    
     def compile_let_statement(self):
         # 'let' varName ('[' expression ']')? '=' expression ';'
 
-        self.consume_and_print_token(expected_type='keyword', expected_value='let')
-        var_name = self.consume_and_print_token(expected_type='identifier') # varName
+        self.consume_token(expected_type='keyword', expected_value='let')
+        var_name = self.consume_token(expected_type='identifier') # varName
         var_info = self.lookup_variable(var_name)
 
         # If array
         if self.get_current_token()[1] == '[':
-            # Push base address + index to get target address
-            write_vm_push(self.vm_file, var_info[1], var_info[2])
+
             self.consume_token(expected_type='symbol', expected_value='[')
+            
+            # Push base address + index to get target address
             self.compile_expression() # pushes index
+            write_vm_push(self.vm_file, var_info[1], var_info[2])
             write_vm_arithmetic(self.vm_file, 'add')
+            
             self.consume_token(expected_type='symbol', expected_value=']')
             self.consume_token(expected_type='symbol', expected_value='=')
             self.compile_expression() # pushes value to assign
@@ -545,9 +534,9 @@ class Parser:
                 # handle reading from an array
                 if self.get_current_token()[1] == '[':
                     var_info = self.lookup_variable(var_name)
-                    write_vm_push(self.vm_file, var_info[1], var_info[2]) # push the base address of the array onto the stack
                     self.consume_token(expected_type='symbol', expected_value='[')
                     self.compile_expression() # pushes the index onto the stack
+                    write_vm_push(self.vm_file, var_info[1], var_info[2]) # push the base address of the array onto the stack
                     write_vm_arithmetic(self.vm_file, 'add') # add the base address and index
                     write_vm_pop(self.vm_file, 'pointer', 1) # pop the resulting address into pointer 1 (that means "that" now points to the target array element)
                     write_vm_push(self.vm_file, 'that', 0) # push the value at that address onto the stack
@@ -574,13 +563,14 @@ class Parser:
                 n_args = 0
 
         else: # no period means it's a subroutineName with an implicit class (the current class), so we need to add the class name in front of it for the VM function call
+            write_vm_push(self.vm_file, 'pointer', 0) # push "this" as implicit class
             full_name = f"{self.class_name}.{name}"
-            n_args = 0
+            n_args = 1
 
         # compile the '(' expressionList ')' part no matter what
-        self.consume_and_print_token(expected_type='symbol', expected_value='(')
+        self.consume_token(expected_type='symbol', expected_value='(')
         num_expressions = self.compile_expression_list()
-        self.consume_and_print_token(expected_type='symbol', expected_value=')')
+        self.consume_token(expected_type='symbol', expected_value=')')
 
         # Call the subroutine with the number of arguments
         n_args += num_expressions
@@ -597,7 +587,7 @@ class Parser:
 
             # repeat until no more expressions are left, which is indicated by no more commas
             while self.get_current_token()[1] == ',':
-                self.consume_and_print_token(expected_type='symbol', expected_value=',')
+                self.consume_token(expected_type='symbol', expected_value=',')
                 self.compile_expression()
                 num_expressions += 1
 
@@ -620,8 +610,10 @@ class SymbolTable:
     def define(self, name, var_type, kind):
         index = self.counters[kind]
         if kind == 'field':
-            kind = 'this' # field variables are accessed with the "this" segment in VM (everything else is reference by its regular name)
-        self.table[name] = (var_type, kind, index)
+            new_kind = 'this' # field variables are accessed with the "this" segment in VM (everything else is reference by its regular name)
+        else:
+            new_kind = kind
+        self.table[name] = (var_type, new_kind, index)
         self.counters[kind] += 1
 
     # Return the information for a variable if it exists in the table, otherwise return None
@@ -659,8 +651,8 @@ def write_vm_return(file):
 
 for jack_file in jack_files:
     jack_basename = os.path.basename(jack_file).replace(".jack", "")
-    tokenizer_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "T.xml")
-    parser_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + ".vm")
+    tokenizer_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "TAarav.xml")
+    parser_output_path = os.path.join(os.path.dirname(jack_file), jack_basename + "Aarav.vm")
 
     file_lines = []
     all_tokens = []
