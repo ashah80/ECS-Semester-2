@@ -177,6 +177,7 @@ class Parser:
         self.subroutine_table = SymbolTable() # symbol table for subroutine-level variables
         self.class_name = "" # for "function ClassName.subroutineName nLocals" 
         self.nLocals = 0
+        self.label_count = 0 # for generating unique labels in if and while statements
 
     # Get the current token without advancing the index
     def get_current_token(self):
@@ -382,11 +383,11 @@ class Parser:
         if self.get_current_token()[1] == '[':
             # Push base address + index to get target address
             write_vm_push(self.vm_file, var_info[1], var_info[2])
-            self.consume_and_print_token(expected_type='symbol', expected_value='[')
+            self.consume_token(expected_type='symbol', expected_value='[')
             self.compile_expression() # pushes index
             write_vm_arithmetic(self.vm_file, 'add')
-            self.consume_and_print_token(expected_type='symbol', expected_value=']')
-            self.consume_and_print_token(expected_type='symbol', expected_value='=')
+            self.consume_token(expected_type='symbol', expected_value=']')
+            self.consume_token(expected_type='symbol', expected_value='=')
             self.compile_expression() # pushes value to assign
 
             write_vm_pop(self.vm_file, 'temp', 0) # save value to assign
@@ -396,33 +397,43 @@ class Parser:
 
         # If regular, pop the value of the expression into the variable based on its kind and index
         else: 
-            self.consume_and_print_token(expected_type='symbol', expected_value='=')
+            self.consume_token(expected_type='symbol', expected_value='=')
             self.compile_expression()
             write_vm_pop(self.vm_file, var_info[1], var_info[2]) 
             
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+        self.consume_token(expected_type='symbol', expected_value=';')
 
-    # TODO: Fix
     def compile_if_statement(self):
-        self.write_line('<ifStatement>')
-        self.indent_level += 1
-
         # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
-        self.consume_and_print_token(expected_type='keyword', expected_value='if')
-        self.consume_and_print_token(expected_type='symbol', expected_value='(')
-        self.compile_expression()
-        self.consume_and_print_token(expected_type='symbol', expected_value=')')
-        self.consume_and_print_token(expected_type='symbol', expected_value='{')
-        self.compile_statements()
-        self.consume_and_print_token(expected_type='symbol', expected_value='}')
-        if self.get_current_token()[1] == 'else':
-            self.consume_and_print_token(expected_type='keyword', expected_value='else')
-            self.consume_and_print_token(expected_type='symbol', expected_value='{')
-            self.compile_statements()
-            self.consume_and_print_token(expected_type='symbol', expected_value='}')
+        current_label_num = self.label_count
+        self.label_count += 1
 
-        self.indent_level -= 1
-        self.write_line('</ifStatement>')
+        self.consume_token(expected_type='keyword', expected_value='if')
+        self.consume_token(expected_type='symbol', expected_value='(')
+        
+        self.compile_expression() # pushes condition
+        write_vm_arithmetic(self.vm_file, 'not') # negate condition
+        false_label = f"IF_FALSE_L{current_label_num}" # unique label for the false
+        end_label = f"IF_END_L{current_label_num}"
+        write_vm_if(self.vm_file, false_label) # if NOT condition, jump to false label
+
+        self.consume_token(expected_type='symbol', expected_value=')')
+        self.consume_token(expected_type='symbol', expected_value='{')
+        self.compile_statements() # true branch
+        self.consume_token(expected_type='symbol', expected_value='}')
+
+        if self.get_current_token()[1] == 'else':
+            write_vm_goto(self.vm_file, end_label) # jump to end label after true branch
+            write_vm_label(self.vm_file, false_label) # if condition is false we jump to this point
+            
+            self.consume_token(expected_type='keyword', expected_value='else')
+            self.consume_token(expected_type='symbol', expected_value='{')
+            self.compile_statements() # false branch
+            self.consume_token(expected_type='symbol', expected_value='}')
+            
+            write_vm_label(self.vm_file, end_label) # write the end label
+        else:
+            write_vm_label(self.vm_file, false_label) # if no else condition, just skip the branch if condition is false
 
     # TODO: Fix
     def compile_while_statement(self):
@@ -441,29 +452,26 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</whileStatement>')
 
-    # TODO: Fix
     def compile_do_statement(self):
-        self.write_line('<doStatement>')
-        self.indent_level += 1
-
         # 'do' subroutineCall ';'
-        self.consume_and_print_token(expected_type='keyword', expected_value='do')
-        self.compile_subroutine_call()
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
 
-        self.indent_level -= 1
-        self.write_line('</doStatement>')
+        self.consume_token(expected_type='keyword', expected_value='do')
+        self.compile_subroutine_call()
+        self.consume_token(expected_type='symbol', expected_value=';')
+
+        # remove return value from stack
+        write_vm_pop(self.vm_file, 'temp', 0)
 
     def compile_return_statement(self):
         # 'return' expression? ';'
         
-        self.consume_and_print_token(expected_type='keyword', expected_value='return')
+        self.consume_token(expected_type='keyword', expected_value='return')
         if self.get_current_token()[1] != ';':
             self.compile_expression()
         else:
             write_vm_push(self.vm_file, 'constant', 0) # "push constant 0" for void functions
 
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
+        self.consume_token(expected_type='symbol', expected_value=';')
         write_vm_return(self.vm_file)
 
     def compile_expression(self):
