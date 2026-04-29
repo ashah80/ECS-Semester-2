@@ -196,6 +196,14 @@ class Parser:
         else:
             return None
         
+    def lookup_variable(self, name):
+        # Look up a variable in the subroutine-level symbol table first, then the class-level symbol table, and return its information (type, kind, index) if found, otherwise return None
+        var_info = self.subroutine_table.get_var(name)
+        if var_info is not None:
+            return var_info
+        else:
+            return self.class_table.get_var(name)
+        
     # TODO: Delete all print statements, then delete this function, bc im no longer printing XML
     def write_line(self, line):
         # self.vm_file.write("  " * self.indent_level + line + "\n")
@@ -448,83 +456,128 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</returnStatement>')
 
-    # TODO: Fix
     def compile_expression(self):
-        self.write_line('<expression>')
-        self.indent_level += 1
-
         # term (op term)*
+
         self.compile_term()
         while self.get_current_token()[1] in ['+', '-', '*', '/', '&', '|', '<', '>', '=']:
-            self.consume_and_print_token(expected_type='symbol') # op
+            op = self.consume_token(expected_type='symbol') # op
             self.compile_term()
 
-        self.indent_level -= 1
-        self.write_line('</expression>')
+            # Print the operator after the second term (because postfix)
+            if op == '+': write_vm_arithmetic(self.vm_file, 'add')
+            elif op == '-': write_vm_arithmetic(self.vm_file, 'sub')
+            elif op == '*': write_vm_call(self.vm_file, 'Math.multiply', 2)
+            elif op == '/': write_vm_call(self.vm_file, 'Math.divide', 2)
+            elif op == '&': write_vm_arithmetic(self.vm_file, 'and')
+            elif op == '|': write_vm_arithmetic(self.vm_file, 'or')
+            elif op == '<': write_vm_arithmetic(self.vm_file, 'lt')
+            elif op == '>': write_vm_arithmetic(self.vm_file, 'gt')
+            elif op == '=': write_vm_arithmetic(self.vm_file, 'eq')
 
-    # TODO: Fix
     def compile_term(self):
-        self.write_line('<term>')
-        self.indent_level += 1
-
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
+
         if self.get_current_token()[0] == 'integerConstant': # integerConstant
-            self.consume_and_print_token(expected_type='integerConstant')
+            integer_value = self.consume_token(expected_type='integerConstant')
+            write_vm_push(self.vm_file, 'constant', integer_value)
+
         elif self.get_current_token()[0] == 'stringConstant': # stringConstant
-            self.consume_and_print_token(expected_type='stringConstant')
+            string_value = self.consume_token(expected_type='stringConstant')
+            write_vm_push(self.vm_file, 'constant', len(string_value))
+            write_vm_call(self.vm_file, 'String.new', 1)
+            for char in string_value:
+                write_vm_push(self.vm_file, 'constant', ord(char))
+                write_vm_call(self.vm_file, 'String.appendChar', 2) # 2 arguments are the string and char to append 
+
         elif self.get_current_token()[1] in ['true', 'false', 'null', 'this']: # keywordConstant
-            self.consume_and_print_token(expected_type='keyword')
+            keyword_constant_value = self.consume_token(expected_type='keyword')
+            if keyword_constant_value == 'true':
+                write_vm_push(self.vm_file, 'constant', 1)
+                write_vm_arithmetic(self.vm_file, 'neg') # true is represented as -1 in VM
+            elif keyword_constant_value in ['false', 'null']:
+                write_vm_push(self.vm_file, 'constant', 0) # false and null are both represented as 0 in VM
+            elif keyword_constant_value == 'this':
+                write_vm_push(self.vm_file, 'pointer', 0) # "this" is represented as pointer 0 in VM
+
         elif self.get_current_token()[1] == '(': # expression
-            self.consume_and_print_token(expected_type='symbol', expected_value='(')
+            self.consume_token(expected_type='symbol', expected_value='(')
             self.compile_expression()
-            self.consume_and_print_token(expected_type='symbol', expected_value=')')
+            self.consume_token(expected_type='symbol', expected_value=')')
+
         elif self.get_current_token()[1] in ['-', '~']: # unaryOp
-            self.consume_and_print_token(expected_type='symbol')
+            op = self.consume_token(expected_type='symbol')
             self.compile_term()
+            if op == '-': write_vm_arithmetic(self.vm_file, 'neg')
+            elif op == '~': write_vm_arithmetic(self.vm_file, 'not')
+
         else:
             # Differentiate between varName and subRoutineCall by looking ahead for a '('
             if self.peek()[1] in ['(', '.']: # subroutineCall 
                 self.compile_subroutine_call()
             else: # varName, need to differentiate between varName and varName '[' expression ']'
-                self.consume_and_print_token(expected_type='identifier') # varName
+                var_name = self.consume_token(expected_type='identifier') # varName
+                # handle reading from an array
                 if self.get_current_token()[1] == '[':
-                    self.consume_and_print_token(expected_type='symbol', expected_value='[')
-                    self.compile_expression()
-                    self.consume_and_print_token(expected_type='symbol', expected_value=']')
-
-        self.indent_level -= 1
-        self.write_line('</term>')
-
-    # TODO: Fix
+                    var_info = self.lookup_variable(var_name)
+                    write_vm_push(self.vm_file, var_info[1], var_info[2]) # push the base address of the array onto the stack
+                    self.consume_token(expected_type='symbol', expected_value='[')
+                    self.compile_expression() # pushes the index onto the stack
+                    write_vm_arithmetic(self.vm_file, 'add') # add the base address and index
+                    write_vm_pop(self.vm_file, 'pointer', 1) # pop the resulting address into pointer 1 (that means "that" now points to the target array element)
+                    write_vm_push(self.vm_file, 'that', 0) # push the value at that address onto the stack
+                    self.consume_token(expected_type='symbol', expected_value=']')
+                # plain varName
+                else: 
+                    var_info = self.lookup_variable(var_name)
+                    write_vm_push(self.vm_file, var_info[1], var_info[2]) # push the variable onto the stack based on its kind and index in the symbol table
+    
     def compile_subroutine_call(self):
-        # not wrapped in a tag for some reason?
-
         # subroutineName '(' expressionList ')' | (className | varName) '.' subroutineName '(' expressionList ')'
-        self.consume_and_print_token(expected_type='identifier') # subroutineName OR className OR varName
+        name = self.consume_token(expected_type='identifier') # subroutineName OR className OR varName
+
         if self.get_current_token()[1] == '.': # period is only preceded by className or varName, not subroutineName
-            self.consume_and_print_token(expected_type='symbol', expected_value='.')
-            self.consume_and_print_token(expected_type='identifier') # subroutineName
+            self.consume_token(expected_type='symbol', expected_value='.')
+            subroutine_name = self.consume_token(expected_type='identifier') # subroutineName
+            var_info = self.lookup_variable(name)
+            if var_info is not None: # this is a variable
+                write_vm_push(self.vm_file, var_info[1], var_info[2]) # push the variable (the object that the method is being called on) onto the stack as the first argument for the method call
+                full_name = f"{var_info[0]}.{subroutine_name}" # className.subroutine
+                n_args = 1 # the object that the method is being called on is the first argument
+            else: # this is a className
+                full_name = f"{name}.{subroutine_name}" # className.subroutine
+                n_args = 0
+
+        else: # no period means it's a subroutineName with an implicit class (the current class), so we need to add the class name in front of it for the VM function call
+            full_name = f"{self.class_name}.{name}"
+            n_args = 0
+
         # compile the '(' expressionList ')' part no matter what
         self.consume_and_print_token(expected_type='symbol', expected_value='(')
-        self.compile_expression_list()
+        num_expressions = self.compile_expression_list()
         self.consume_and_print_token(expected_type='symbol', expected_value=')')
 
-    # TODO: Fix
-    def compile_expression_list(self):
-        self.write_line('<expressionList>')
-        self.indent_level += 1
+        # Call the subroutine with the number of arguments
+        n_args += num_expressions
+        write_vm_call(self.vm_file, full_name, n_args)
 
+
+    def compile_expression_list(self):
         # (expression (',' expression)*)?
+        num_expressions = 0
+
         if self.get_current_token()[1] != ')': # if the next token is a ')' then the expression list is empty (because the expression list is always followed by a ')')
             self.compile_expression()
+            num_expressions += 1
+
             # repeat until no more expressions are left, which is indicated by no more commas
             while self.get_current_token()[1] == ',':
                 self.consume_and_print_token(expected_type='symbol', expected_value=',')
                 self.compile_expression()
+                num_expressions += 1
 
-        self.indent_level -= 1
-        self.write_line('</expressionList>')
-    
+        return num_expressions
+
 class SymbolTable:
     """
     Symbol table class that keeps track of the variables in the current scope (class-level and subroutine-level) and their corresponding type, kind, and index. Used to generate the correct VM code for variable access. 
