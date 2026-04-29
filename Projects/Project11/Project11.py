@@ -371,24 +371,36 @@ class Parser:
         self.indent_level -= 1
         self.write_line('</statements>')
     
-    # TODO: Fix
     def compile_let_statement(self):
-        self.write_line('<letStatement>')
-        self.indent_level += 1
-
         # 'let' varName ('[' expression ']')? '=' expression ';'
-        self.consume_and_print_token(expected_type='keyword', expected_value='let')
-        self.consume_and_print_token(expected_type='identifier') # varName
-        if self.get_current_token()[1] == '[':
-            self.consume_and_print_token(expected_type='symbol', expected_value='[')
-            self.compile_expression()
-            self.consume_and_print_token(expected_type='symbol', expected_value=']')
-        self.consume_and_print_token(expected_type='symbol', expected_value='=')
-        self.compile_expression()
-        self.consume_and_print_token(expected_type='symbol', expected_value=';')
 
-        self.indent_level -= 1
-        self.write_line('</letStatement>')
+        self.consume_and_print_token(expected_type='keyword', expected_value='let')
+        var_name = self.consume_and_print_token(expected_type='identifier') # varName
+        var_info = self.lookup_variable(var_name)
+
+        # If array
+        if self.get_current_token()[1] == '[':
+            # Push base address + index to get target address
+            write_vm_push(self.vm_file, var_info[1], var_info[2])
+            self.consume_and_print_token(expected_type='symbol', expected_value='[')
+            self.compile_expression() # pushes index
+            write_vm_arithmetic(self.vm_file, 'add')
+            self.consume_and_print_token(expected_type='symbol', expected_value=']')
+            self.consume_and_print_token(expected_type='symbol', expected_value='=')
+            self.compile_expression() # pushes value to assign
+
+            write_vm_pop(self.vm_file, 'temp', 0) # save value to assign
+            write_vm_pop(self.vm_file, 'pointer', 1) # pop target address into pointer 1 (means "that" now points to the target array element)
+            write_vm_push(self.vm_file, 'temp', 0) # push value to assign (again)
+            write_vm_pop(self.vm_file, 'that', 0) # pop value to assign into that 0, which assigns it to the target array element
+
+        # If regular, pop the value of the expression into the variable based on its kind and index
+        else: 
+            self.consume_and_print_token(expected_type='symbol', expected_value='=')
+            self.compile_expression()
+            write_vm_pop(self.vm_file, var_info[1], var_info[2]) 
+            
+        self.consume_and_print_token(expected_type='symbol', expected_value=';')
 
     # TODO: Fix
     def compile_if_statement(self):
