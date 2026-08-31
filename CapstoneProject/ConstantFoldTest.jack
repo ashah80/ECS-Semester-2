@@ -1,0 +1,8 @@
+class ConstantFoldTest {
+    function void main() {
+        var int x;
+        let x = 2 + 3 * 4;
+        do Output.printInt(x);
+        return;
+    }
+}

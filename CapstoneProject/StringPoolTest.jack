@@ -1,0 +1,11 @@
+class StringPoolTest {
+    function void main() {
+        do Output.printString("hello");
+        do Output.printLine();
+        do Output.printString("hello");
+        do Output.printLine();
+        do Output.printString("world");
+        do Output.printLine();
+        return;
+    }
+}

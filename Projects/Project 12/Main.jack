@@ -1,0 +1,6 @@
+// Blank jack file for testing
+class Main {
+   function void main() {
+    return;
+   }
+}

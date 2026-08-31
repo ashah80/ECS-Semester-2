@@ -1,0 +1,27 @@
+class Test {
+    function void main() {
+        var int a, b, c, d;
+        let a = 2;
+        let b = 3;
+        let c = 4;
+        let d = 0;
+
+        // Test 1: * should bind tighter than +
+        // Should be 2 + (3*4) = 14, NOT (2+3)*4 = 20
+        let d = a + b * c;
+
+        // Test 2: / should bind tighter than -
+        // Should be 2 - (4/2) = 0, NOT (2-4)/2 = -1
+        let d = a - c / a;
+
+        // Test 3: left-associativity of + and -
+        // Should be 4-2+3 = 5, NOT 4-(2+3) = -1
+        let d = c - a + b;
+
+        // Test 4: parentheses override precedence
+        // Should be (2+3)*4 = 20, NOT 2+(3*4) = 14
+        let d = (a + b) * c;
+
+        return;
+    }
+}
